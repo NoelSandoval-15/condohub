@@ -1,6 +1,6 @@
 # Guía de arranque del equipo — CondoHub
 
-Estado real de la base sobre la que se construye (14/10/2026) y cómo continuar. Las reglas siguen en `CLAUDE.md` y `docs/negocio/reglas-de-negocio.md`; el plan en `docs/PLAN_4_SEMANAS.md`.
+Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar. Las reglas siguen en `CLAUDE.md` y `docs/negocio/reglas-de-negocio.md`; el plan en `docs/PLAN_4_SEMANAS.md`.
 
 ## 1. Qué está listo y verificado
 
@@ -12,7 +12,7 @@ Estado real de la base sobre la que se construye (14/10/2026) y cómo continuar.
 | n8n | En el compose, con su base en Postgres | `healthz` |
 | Contratos | `events/` (sobre + 13 eventos), `openapi/` (`ia`, `agentes`, `reservas`, `acceso`), `graphql/schema.graphql` (v1 mínima) | Esquemas compilados y probados con mensajes válidos e inválidos; lint de OpenAPI |
 | Gestión | Spring Boot + Hexagonal; `salud`, `estadoDeCuenta` (F1), `pagosPendientes` | 22 tests, ArchUnit, Testcontainers; probado por el gateway |
-| IA | FastAPI + Clean; endpoints de `ia.yaml` protegidos por rol (501 hasta tener lógica) | 38 tests, ruff, mypy; probado por el gateway |
+| IA | FastAPI + Clean; endpoints de `ia.yaml` protegidos por rol (501 hasta tener lógica). ML en Colab (`services/ia/ml/README.md`): línea base facial, registro con fotos propias y ajuste fino, ya ejecutados | 88 tests (servicio + ML), ruff, mypy; probado por el gateway |
 | Acceso | Next.js + Clean; endpoints protegidos por rol (501) | 35 tests, lint, build; probado por el gateway |
 | Agentes | FastAPI + Clean; misiones y confirmaciones solo para ADMIN (501 hasta tener lógica) | 26 tests, ruff, mypy; probado por el gateway |
 | Reservas | Laravel 12 + Clean; endpoints protegidos por rol (501); esquema SQL existente migrado y sus pruebas de BD en verde | 31 tests (Pest), PHPStan nivel 8, Pint; probado por el gateway |
@@ -72,9 +72,12 @@ Cada esqueleto trae una **matriz rol × endpoint** en sus tests; cuando agregues
 3. Agentes: revisar `contracts/openapi/agentes.yaml` (v1 propuesta) y construir el servidor MCP, el LLM y MongoDB sobre el esqueleto.
 
 **Luis**
-1. IA Fase 1: pipeline MTCNN → FaceNet, línea base con métricas, datasets con consentimiento. Instalar PyTorch (no está aún).
-2. Flujos de n8n (el compose ya los espera en `infra/n8n/flows/`).
-3. Quitar el `501` de cada endpoint de IA al implementarlo y actualizar `ia.yaml` si cambia algo.
+Hecho: pipeline MTCNN → FaceNet, línea base con métricas, registro con fotos propias y ajuste fino (no concluyente; el servicio usa el modelo preentrenado). **Hallazgo:** con LFW el FAR era 0,12 %, pero con amigos reales el modelo aceptó a 2 de 3; el umbral hay que calibrarlo con desconocidos reales (detalle en `services/ia/ml/README.md`).
+
+1. Reunir fotos con consentimiento (`docs/negocio/consentimiento-facial.md`): las de los tres y 10–15 desconocidos; probar otros métodos de comparación y fijar el umbral.
+2. Dataset de placas (YOLO + OCR) y DBSCAN con datos reales (I4).
+3. Flujos de n8n (el compose ya los espera en `infra/n8n/flows/`).
+4. Quitar el `501` de cada endpoint de IA al implementarlo y actualizar `ia.yaml` si cambia algo.
 
 ## 5. Decisiones abiertas (alguien tiene que cerrarlas)
 
@@ -86,8 +89,13 @@ Cada esqueleto trae una **matriz rol × endpoint** en sus tests; cuando agregues
 | `TODO(regla)` IA | Cómo enlazar `sub` del token con `residenteId` para que el RESIDENTE solo retire **su** consentimiento (I1) | Luis y Aldana |
 | Clave de firma | El realm usa una clave RSA fija **de desarrollo** (está en el repo, a propósito, para que el gateway valide siempre). No usar fuera de desarrollo | todos |
 | Almacén S3 (cerrada, a confirmar) | La imagen de MinIO ya no se puede descargar, así que el servicio `minio` del compose es ahora **SeaweedFS** con API S3 (`docs/adr/0002-almacen-s3.md`). Verificado: subir/bajar archivos y rechazo de credenciales falsas. Faltan por probar las URLs firmadas. Erick debe confirmar el ADR | Erick |
-| Git | Nada está commiteado: el espacio de trabajo aún no es un repo. Crear los 10 repos (tarea del jueves 15 del plan) | todos |
+| `pases/validar` (regla A1/A2) | ¿Validar un pase consume su único uso, o lo consume el registro de ingreso (`POST /api/accesos`)? Propuesta: lo consume el registro; validar solo consulta. Escribirlo en `reglas-de-negocio.md` antes del código | Erick (decide con el equipo) |
+| Umbral facial en tres zonas (regla I2) | Con un solo umbral no se separa bien a los desconocidos parecidos. Propuesta: alto = reconocido, intermedio = «dudoso, decide el guardia», bajo = desconocido. Cambia I2: primero acordarlo y escribirlo en `reglas-de-negocio.md` | Luis, con el equipo |
+| Fotos y consentimiento | Cada integrante aporta 30–50 fotos (3 sesiones) y 10–15 desconocidos con permiso. Completar los campos `[entre corchetes]` de `docs/negocio/consentimiento-facial.md` y definir dónde se guardan (privado, nunca en git) | todos |
+| Dónde viven los repos | Cada repo está en una cuenta de GitHub distinta (p. ej. el de la raíz en la de Erick y `condohub-ia` en la de Luis). Anotar aquí las URLs reales de los 10 y quién tiene acceso a cuáles | todos |
 
 ## 6. Convenciones que ya se aplican
 
 Contrato primero; test de dominio con el código de la regla en el nombre (`F1_residente_no_ve_otra_unidad`); errores `application/problem+json` con `code`; dinero como string decimal; el dominio no importa frameworks (lo verifican ArchUnit, ESLint `no-restricted-imports` y un test de dependencias). No reescribir código funcional: se extiende.
+
+**Git:** el módulo que toca una sola persona puede trabajarse directo en `main` (siempre `git pull` antes de `push`). Lo que tocan varios (`contracts/`, `infra/`, `docs/`) va por rama y PR revisado por otra persona, y los cambios de contrato primero. Nunca se suben `.env`, fotos de personas, datasets ni pesos de modelos.
