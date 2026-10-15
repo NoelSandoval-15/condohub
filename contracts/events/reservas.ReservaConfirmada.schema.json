@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reservas.ReservaConfirmada.schema.json",
+  "title": "reservas.ReservaConfirmada",
+  "description": "La saga terminó bien (paso 4). n8n avisa al residente.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "reservas.ReservaConfirmada"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reservaId",
+            "unidadId",
+            "areaComun",
+            "inicio",
+            "fin"
+          ],
+          "properties": {
+            "reservaId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "areaComun": {
+              "type": "string"
+            },
+            "inicio": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "fin": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "condohub",
+      "credentials": [{ "accessKey": "condohub", "secretKey": "condohub123" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

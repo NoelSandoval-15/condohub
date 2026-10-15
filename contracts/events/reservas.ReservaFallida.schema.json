@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reservas.ReservaFallida.schema.json",
+  "title": "reservas.ReservaFallida",
+  "description": "La saga falló y se compensó. n8n avisa al residente.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "reservas.ReservaFallida"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reservaId",
+            "unidadId",
+            "motivo"
+          ],
+          "properties": {
+            "reservaId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "motivo": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

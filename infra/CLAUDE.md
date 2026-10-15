@@ -1,0 +1,120 @@
+# CLAUDE.md — infra/
+
+Infraestructura local de CondoHub, en el repo raíz `condohub`. Responsable: **Erick** (flujos n8n: **Luis**).
+
+```
+infra/
+├── docker-compose.yml        # postgres, mongo, dynamodb-local, rabbitmq, keycloak, minio, n8n, gateway
+├── docker-compose.apps.yml   # opcional: levanta también los servicios desde sus imágenes
+├── postgres/init/            # crea una base por servicio: gestion, reservas, keycloak (usuarios distintos)
+├── keycloak/realm-condohub.json   # realm, roles ADMIN/RESIDENTE/GUARDIA, clientes y usuarios de prueba
+├── gateway/                  # configuración del API Gateway (rutas /gestion, /reservas, /acceso, /ia, /agentes)
+├── rabbitmq/definitions.json # exchange condohub.events, colas de la saga y DLQ
+└── n8n/flows/                # flujos exportados en JSON
+```
+
+## Reglas
+
+- Cada servicio tiene su base y su usuario; ningún usuario de BD tiene permisos sobre la base de otro servicio.
+- El realm de Keycloak se importa al arrancar; cualquier cambio en la consola de Keycloak se exporta de vuelta a `realm-condohub.json`.
+- Secretos solo en `.env` (ignorado). `.env.example` con valores de desarrollo.
+- Healthchecks en todos los contenedores; los servicios dependen con `condition: service_healthy`.
+- El gateway valida el JWT y reenvía el header `Authorization` a los servicios (que vuelven a validarlo).
+
+## Keycloak (SSO)
+
+Servicio `keycloak` (imagen 25.0.6, `start-dev --import-realm`, base `keycloak` en PostgreSQL). Consola: <http://localhost:8180> (`KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`). Verificado el 14/10/2026: el realm se importa al arrancar y los tokens salen con el rol esperado.
+
+- **Issuer**: `http://localhost:8180/realms/condohub` (fijo por `KC_HOSTNAME`). Los servicios dentro de Docker piden las claves en `http://keycloak:8080/realms/condohub/protocol/openid-connect/certs` (`KC_HOSTNAME_BACKCHANNEL_DYNAMIC`), pero validan el `iss` contra el de arriba.
+- **Roles** (realm): `ADMIN`, `RESIDENTE`, `GUARDIA`. Van en el claim `realm_access.roles` del access token.
+- **Usuarios de prueba** (contraseña `USUARIOS_PRUEBA_PASSWORD`, por defecto `Condohub123!`; `sub` fijo, lo usa el seed de datos):
+
+  | Usuario | Rol | `sub` |
+  |---|---|---|
+  | `admin@condohub.test` | `ADMIN` | `00000000-0000-0000-0000-00000000a001` |
+  | `residente@condohub.test` | `RESIDENTE` | `00000000-0000-0000-0000-00000000a002` |
+  | `guardia@condohub.test` | `GUARDIA` | `00000000-0000-0000-0000-00000000a003` |
+
+- **Clientes**: `condohub-spa` (público, Authorization Code + PKCE S256, redirect a los puertos 5173/5174/5175/4200; tiene `directAccessGrantsEnabled` solo para pruebas con curl) y `condohub-servicios` (confidencial, `client_credentials`, secreto `CONDOHUB_SERVICIOS_SECRET`) para n8n, agentes y reportes.
+- Clave de firma: RSA fija de desarrollo (ver "Gateway"); los tokens se validan con ella en el gateway y en los servicios (vía JWKS del realm).
+- Access token: 15 min. Sesión inactiva: 30 min.
+
+Obtener un token para probar un endpoint:
+
+```bash
+curl -s -X POST http://localhost:8180/realms/condohub/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=condohub-spa \
+  -d username=admin@condohub.test -d 'password=Condohub123!' | jq -r .access_token
+```
+
+Token de servicio (`condohub-servicios`): mismo endpoint con `grant_type=client_credentials`, `client_id=condohub-servicios` y `client_secret`.
+
+## Puertos ocupados en tu máquina
+
+Si un puerto del compose ya lo usa otro programa (en la máquina de Luis: 5432 por un PostgreSQL de Windows y 8080 por `AgentService`), no lo apagues: cambia el puerto del host con `POSTGRES_PORT` y `GATEWAY_PORT` (variables de entorno o `infra/.env`). Dentro de Docker los puertos no cambian.
+
+## Gateway (Kong DB-less)
+
+Kong 3.7 con `gateway/kong.yml` (sin base de datos). Puerto host **8080** (`GATEWAY_PORT` lo cambia; en una máquina de Luis el 8080 lo ocupa un proceso `AgentService` ajeno, ahí se usa `GATEWAY_PORT=8090`).
+
+- Plugin `jwt` global: valida firma RS256, `exp` y que el `iss` sea `http://localhost:8180/realms/condohub`. Sin token o con token inválido → **401**. El gateway **no** autoriza por rol: eso lo hace cada servicio con los roles del token.
+- Rutas (con `strip_path`, así `/gestion/graphql` llega como `/graphql`): `/gestion`→8081, `/reservas`→8082, `/acceso`→3001, `/ia`→8083, `/agentes`→8084. Los upstreams son `host.docker.internal:<puerto>` porque en desarrollo los servicios corren en el host; cuando haya `docker-compose.apps.yml` pasan a nombre de servicio.
+- Plugin `cors` global para 5173, 5174, 5175 y 4200; permite `Authorization` e `Idempotency-Key`.
+- **Clave RSA fija de desarrollo**: el realm instala la clave `rsa-desarrollo-fija` (componente `KeyProvider` en `realm-condohub.json`) y su parte pública está pegada en `kong.yml`. Así el gateway sigue validando aunque se recree la base de Keycloak. Es solo de desarrollo; si se cambia la clave del realm, hay que actualizar `rsa_public_key` en `kong.yml`.
+- Verificado el 14/10/2026 contra un eco temporal: sin token 401, token basura 401, tokens de `ADMIN`/`RESIDENTE`/`GUARDIA` 200, `Authorization` reenviado intacto, ruta inexistente 404, preflight CORS correcto. Cuando un servicio no está levantado, el gateway responde 502 (la autenticación ya pasó).
+- Cambiar `kong.yml` requiere `docker compose -f infra/docker-compose.yml restart gateway`.
+
+## Almacén S3 (servicio `minio`, hoy SeaweedFS)
+
+Guarda fotos, audio, comprobantes y pesos de modelos (I6). La imagen de MinIO ya no se puede descargar, por lo que el servicio usa
+`chrislusf/seaweedfs:3.85` con su API S3 (ver `docs/adr/0002-almacen-s3.md`). El nombre `minio` del servicio y las variables `MINIO_*` se conservan.
+
+- Endpoint S3: `http://localhost:9000` (desde Docker: `http://minio:9000`). Panel del maestro: `http://localhost:9333` (no hay consola en el 9001).
+- Credenciales de desarrollo: `infra/seaweedfs/s3.json` (access key `condohub`, secreta `condohub123`); deben coincidir con `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` de `.env`. Sin firma o con claves falsas el acceso se rechaza.
+- Los buckets los crea el cliente S3 (ej. `aws --endpoint-url http://localhost:9000 s3 mb s3://modelos`).
+
+## RabbitMQ
+
+Imagen `rabbitmq:3.13-management`; panel <http://localhost:15672> (usuario `condohub` / contraseña `condohub`, solo desarrollo; el usuario y su hash viven en `rabbitmq/definitions.json`, que se carga al arrancar). Para cambiar la topología: editar `definitions.json` y recrear el volumen (`down -v` o `docker volume rm condohub_rabbit_data`), porque las definiciones solo se importan al crear el broker.
+
+- Exchange `condohub.events` (topic, durable), routing key `<contexto>.<Evento>`. Lo que se rechaza o expira va por `condohub.events.dlx` a la cola `condohub.dlq`.
+- Colas y bindings (nombres tomados de `services/reservas/CLAUDE.md`; el contexto de Gestión es `finanzas`). Los eventos están definidos en `contracts/events/`:
+
+  | Cola | Consumidor | Bindings |
+  |---|---|---|
+  | `finanzas.reservas` | Gestión (saga, paso 2) | `reservas.AplicarCargosReserva`, `reservas.AnularCargosReserva` |
+  | `acceso.reservas` | Acceso (saga, paso 3) | `reservas.EmitirPasesReserva`, `reservas.RevocarPasesReserva` |
+  | `reservas.saga` | orquestador de Reservas | `finanzas.CargoAplicado`, `finanzas.CargoAnulado`, `acceso.PaseEmitido`, `acceso.PaseRevocado` |
+  | `n8n.eventos` | flujos n8n | `finanzas.PagoRegistrado`, `finanzas.PagoConfirmado`, `ia.VisitanteRecurrenteDetectado`, `reservas.ReservaConfirmada`, `reservas.ReservaFallida` |
+  | `condohub.dlq` | revisión manual | todo lo que llega al DLX |
+
+- Cada servicio declara/valida sus colas al arrancar con las mismas definiciones; no cambiar nombres sin avisar.
+- Para aplicar un cambio de `definitions.json` sin borrar el volumen: `POST /api/definitions` en el panel (solo agrega) y borrar a mano colas o bindings obsoletos por la API.
+## n8n
+
+Imagen `n8nio/n8n:1.64.0`, editor en <http://localhost:5678>, estado en la base `n8n` de PostgreSQL (usuario `n8n`). La primera vez que entras te pide crear la cuenta de propietario (es local, no usa Keycloak). Las credenciales de los flujos se cifran con `N8N_ENCRYPTION_KEY`; si se cambia, hay que volver a crearlas.
+
+- Para consumir eventos, los flujos leen de RabbitMQ la cola `n8n.eventos` (usuario `condohub`, host `rabbitmq`, puerto 5672).
+- Para llamar a Gestión o a los demás servicios, los flujos piden un token con el cliente `condohub-servicios` (`client_credentials`, ver Keycloak) y llaman por el gateway o directo (`http://host.docker.internal:<puerto>`).
+- Exporta cada flujo a `infra/n8n/flows/<nombre>.json` sin credenciales dentro.
+
+## Flujos n8n (Luis)
+
+| Flujo | Disparo | Hace |
+|---|---|---|
+| Recordatorio de cuotas vencidas | diario 09:00 | consulta morosos (GraphQL) y envía recordatorio |
+| Comprobante recibido | evento `PagoRegistrado` | compara con el extracto, deja sugerencia de conciliación al `ADMIN`; al `PagoConfirmado` envía el recibo |
+| Alerta de cámara | evento `VisitanteRecurrenteDetectado` | notifica al guardia |
+| Informe mensual | día 1 | resumen a propietarios |
+| Notificación de reserva | `ReservaConfirmada` / `ReservaFallida` | avisa al residente |
+
+Exporta cada flujo a `n8n/flows/<nombre>.json` después de editarlo en la UI; sin credenciales dentro del JSON.
+
+## Comandos
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml down       # -v borra datos
+docker compose -f infra/docker-compose.yml logs -f keycloak
+node infra/humo.mjs        # prueba de humo: login de los 3 usuarios + "hola" de cada servicio por el gateway (GATEWAY_PORT si no usas el 8080)
+```

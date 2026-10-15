@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "finanzas.PagoRegistrado.schema.json",
+  "title": "finanzas.PagoRegistrado",
+  "description": "Un residente subió un comprobante; el pago nace PENDIENTE (F8, F9). n8n lo compara con el extracto y deja una sugerencia al ADMIN.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "finanzas.PagoRegistrado"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pagoId",
+            "unidadId",
+            "monto",
+            "fechaPago"
+          ],
+          "properties": {
+            "pagoId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "monto": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d{2}$",
+              "description": "Decimal como string con 2 decimales (F10)"
+            },
+            "fechaPago": {
+              "type": "string",
+              "format": "date"
+            },
+            "banco": {
+              "type": "string"
+            },
+            "nroOperacion": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

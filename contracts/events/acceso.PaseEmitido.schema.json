@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "acceso.PaseEmitido.schema.json",
+  "title": "acceso.PaseEmitido",
+  "description": "Acceso confirma que emitió los pases (respuesta del paso 3).",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "acceso.PaseEmitido"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reservaId",
+            "pases"
+          ],
+          "properties": {
+            "reservaId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "pases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "invitadoId",
+                  "codigo"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "invitadoId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "codigo": {
+                    "type": "string",
+                    "description": "Código del QR"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

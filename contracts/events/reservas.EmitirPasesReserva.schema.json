@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reservas.EmitirPasesReserva.schema.json",
+  "title": "reservas.EmitirPasesReserva",
+  "description": "Reservas pide a Acceso emitir los pases QR de los invitados (saga, paso 3).",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "reservas.EmitirPasesReserva"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reservaId",
+            "unidadId",
+            "unidadCodigo",
+            "fecha",
+            "invitados"
+          ],
+          "properties": {
+            "reservaId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadCodigo": {
+              "type": "string",
+              "description": "Ej. A-101; Acceso identifica la unidad por código"
+            },
+            "fecha": {
+              "type": "string",
+              "format": "date"
+            },
+            "invitados": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "invitadoId",
+                  "nombre"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "invitadoId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "nombre": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

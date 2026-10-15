@@ -1,0 +1,244 @@
+{
+    "rabbit_version":  "3.13",
+    "users":  [
+                  {
+                      "hashing_algorithm":  "rabbit_password_hashing_sha256",
+                      "tags":  [
+                                   "administrator"
+                               ],
+                      "name":  "condohub",
+                      "password_hash":  "i3HibpE56UHjUo6KXMWzN5f7ZHF7WzDMBTZ4UfcZqRHX+Ley"
+                  }
+              ],
+    "vhosts":  [
+                   {
+                       "name":  "/"
+                   }
+               ],
+    "permissions":  [
+                        {
+                            "vhost":  "/",
+                            "write":  ".*",
+                            "user":  "condohub",
+                            "configure":  ".*",
+                            "read":  ".*"
+                        }
+                    ],
+    "exchanges":  [
+                      {
+                          "name":  "condohub.events",
+                          "vhost":  "/",
+                          "type":  "topic",
+                          "durable":  true,
+                          "auto_delete":  false,
+                          "internal":  false,
+                          "arguments":  {
+
+                                        }
+                      },
+                      {
+                          "name":  "condohub.events.dlx",
+                          "vhost":  "/",
+                          "type":  "topic",
+                          "durable":  true,
+                          "auto_delete":  false,
+                          "internal":  false,
+                          "arguments":  {
+
+                                        }
+                      }
+                  ],
+    "queues":  [
+                   {
+                       "name":  "finanzas.reservas",
+                       "vhost":  "/",
+                       "durable":  true,
+                       "auto_delete":  false,
+                       "arguments":  {
+                                         "x-queue-type":  "classic",
+                                         "x-dead-letter-exchange":  "condohub.events.dlx"
+                                     }
+                   },
+                   {
+                       "name":  "acceso.reservas",
+                       "vhost":  "/",
+                       "durable":  true,
+                       "auto_delete":  false,
+                       "arguments":  {
+                                         "x-queue-type":  "classic",
+                                         "x-dead-letter-exchange":  "condohub.events.dlx"
+                                     }
+                   },
+                   {
+                       "name":  "reservas.saga",
+                       "vhost":  "/",
+                       "durable":  true,
+                       "auto_delete":  false,
+                       "arguments":  {
+                                         "x-queue-type":  "classic",
+                                         "x-dead-letter-exchange":  "condohub.events.dlx"
+                                     }
+                   },
+                   {
+                       "name":  "n8n.eventos",
+                       "vhost":  "/",
+                       "durable":  true,
+                       "auto_delete":  false,
+                       "arguments":  {
+                                         "x-queue-type":  "classic",
+                                         "x-dead-letter-exchange":  "condohub.events.dlx"
+                                     }
+                   },
+                   {
+                       "name":  "condohub.dlq",
+                       "vhost":  "/",
+                       "durable":  true,
+                       "auto_delete":  false,
+                       "arguments":  {
+                                         "x-queue-type":  "classic"
+                                     }
+                   }
+               ],
+    "bindings":  [
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "finanzas.reservas",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.AplicarCargosReserva",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "finanzas.reservas",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.AnularCargosReserva",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "acceso.reservas",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.EmitirPasesReserva",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "acceso.reservas",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.RevocarPasesReserva",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "reservas.saga",
+                         "destination_type":  "queue",
+                         "routing_key":  "finanzas.CargoAplicado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "reservas.saga",
+                         "destination_type":  "queue",
+                         "routing_key":  "finanzas.CargoAnulado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "reservas.saga",
+                         "destination_type":  "queue",
+                         "routing_key":  "acceso.PaseEmitido",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "reservas.saga",
+                         "destination_type":  "queue",
+                         "routing_key":  "acceso.PaseRevocado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "n8n.eventos",
+                         "destination_type":  "queue",
+                         "routing_key":  "finanzas.PagoRegistrado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "n8n.eventos",
+                         "destination_type":  "queue",
+                         "routing_key":  "finanzas.PagoConfirmado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "n8n.eventos",
+                         "destination_type":  "queue",
+                         "routing_key":  "ia.VisitanteRecurrenteDetectado",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "n8n.eventos",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.ReservaConfirmada",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events",
+                         "vhost":  "/",
+                         "destination":  "n8n.eventos",
+                         "destination_type":  "queue",
+                         "routing_key":  "reservas.ReservaFallida",
+                         "arguments":  {
+
+                                       }
+                     },
+                     {
+                         "source":  "condohub.events.dlx",
+                         "vhost":  "/",
+                         "destination":  "condohub.dlq",
+                         "destination_type":  "queue",
+                         "routing_key":  "#",
+                         "arguments":  {
+
+                                       }
+                     }
+                 ]
+}

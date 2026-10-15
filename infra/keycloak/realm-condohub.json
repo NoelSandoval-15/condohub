@@ -1,0 +1,114 @@
+{
+  "realm": "condohub",
+  "displayName": "CondoHub",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Administrador del condominio" },
+      { "name": "RESIDENTE", "description": "Propietario o residente de una unidad" },
+      { "name": "GUARDIA", "description": "Guardia de portería" }
+    ]
+  },
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "rsa-desarrollo-fija",
+        "providerId": "rsa",
+        "config": {
+          "priority": ["200"],
+          "enabled": ["true"],
+          "active": ["true"],
+          "algorithm": ["RS256"],
+          "privateKey": ["MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDBYtAsOL7sh93XEJjqOV1Hm6RubwJtGLe2bvUEmaP/IUdJODXYskCBLS8pYVsvlQ69P1fwOk2avlm2m7U9E2vuwktC3jZXiNtvCJPjulC2wuOBvqHBmOS9cNAz9KMZCxV5PqHdDH4bactQkroqLQFvIK1mboJeEansrBLPMRpPNL9R+iRh1S27+FAOcDuvqhdam5P6ZH6oLzH3YYxHNAsdt0E/J9yUgN1ZwBZ8vc08m3XmdwRgVVWtJf70tUj3dwk04Ap8HewKBZMJco0sjkZ63PoXhRl3RuvMZSYRjMKgEzbt+oMha6qGUVQyWHqdomd4NG7BOgmooxxDr/lVzHMLAgMBAAECggEAHVIOjw3hgLpO28tD7Atbhb5m7Wl+XC0puYrUMmjbERUqGkNgAqVwG0XPBz6gFTRL4kym2CD24DXpI0MzdPmrXS1vPMm1QotY/do2lgoLL9KXrPXKz7APSlu+7Ymzatof3NyurPW2bxCYx3QfrsJZG9DACa5KrNmPwncKeQiQXR62IdF7NWsjjSUHRtTjaPG4MCHHFdFBed7A7fgZ0e2zWes1ugsqK0LhR/aJ9kFJwXGD/q3jq/OwpzYfvp7o0zc9GmdAI1fe9U5pTEKzXHlmB87bO1p0EDR3EoEaAvbbQAYR50FEpUSJE8tZonUD01a0q5vZ9CVt/WFpAD6JFJspTQKBgQDtG9wO5IqW7xnqnZ1YObFtYkgzfP9XpXCSB19PJWshKFXYirwyIfpUteMzlOy7yKTCVceT/WUm08N0iNVKR+xwD0O+jJJ3ZpqvBJo4f+JKjRLI+UACddxe98OfhGdG/z5uCrVIjg9K5bSQsRbhBh/8G9O/Yv4/FZAYYSRnj2XzvwKBgQDQyyt+QnocXUWK+BDHgvqHRTE4vzz0H9a0vGP9x01ykSH8975f1n/5z4y2QzTjky6iwyVz+MHRlmR2EyDX3p9rfXsmk3pxoeAFsAFrqfxXNDevppfbigBOiPVzOhnRwlDMt9q2NtbOYGlNf+zyRh8WbEyMllmE3PQ3xNNxBpwjtQKBgQCLT/Up4uny6KVHjjfmoG85H6fgaK72ZkQP6Lj9HbUmFDbsNgeBRSl6ICxQIE4/vxHfBNtwfk+yUnXiwIrhTAUFilJ5YMql0OlNr9yVGb5xoxXIc3pCd9F1EwojbX3o3wtlSHFfIeimTvSalxIkQJ8GV6tAJf/QPPEfAeSL3FtArQKBgQCWop3kX62dnSU5F7NzXWnGAgN6/23IatgKWQiC5TFZAKBW055Doot9/WF1dZNIxL0WrFfvDX836JreHPrLA1BcypD4ydnC9ZicQdkkheUKPSAX18cjmrKR9nmvAjHyhZCpwdNHNtVO23vdb/fQ6wousT+hBi/bjVWcjqJFnxEzKQKBgFtNr5WzwB9tLlA6kCujA39qG9adYvBy2oXbnPEhNcMsoRogXDIAlvZwu7NY18R/Pv92YtJNaEYocyi2VsLiZ14Yj8mQ4vi8yPlAfW5a9nCgPSFCbtQkx9SLPCu+vr0JQUDURx/i+QPAxqamrRHBDYDPXAXTXiCKtKt0VAOUNY83"],
+          "certificate": ["MIIDDzCCAfegAwIBAgIUEVGt7incSCBpVn6RmtBsZIl+nIEwDQYJKoZIhvcNAQELBQAwFzEVMBMGA1UEAwwMY29uZG9odWItZGV2MB4XDTI2MTAxNTAwNTAxNFoXDTM2MTAxMjAwNTAxNFowFzEVMBMGA1UEAwwMY29uZG9odWItZGV2MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwWLQLDi+7Ifd1xCY6jldR5ukbm8CbRi3tm71BJmj/yFHSTg12LJAgS0vKWFbL5UOvT9X8DpNmr5Ztpu1PRNr7sJLQt42V4jbbwiT47pQtsLjgb6hwZjkvXDQM/SjGQsVeT6h3Qx+G2nLUJK6Ki0BbyCtZm6CXhGp7KwSzzEaTzS/UfokYdUtu/hQDnA7r6oXWpuT+mR+qC8x92GMRzQLHbdBPyfclIDdWcAWfL3NPJt15ncEYFVVrSX+9LVI93cJNOAKfB3sCgWTCXKNLI5Getz6F4UZd0brzGUmEYzCoBM27fqDIWuqhlFUMlh6naJneDRuwToJqKMcQ6/5VcxzCwIDAQABo1MwUTAdBgNVHQ4EFgQU7og5EEhWgIUYok2sPPrkYxTArH0wHwYDVR0jBBgwFoAU7og5EEhWgIUYok2sPPrkYxTArH0wDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAdWIP0bK0MiMS4c+uuISsnBmjfVFZjCQxpsYQ9XuQNjPOHZUNYKK/NZD4Vz4Cm0XzLcWUV525clakX+OgKCsNY0fr9xzdv81DycxiF9+y7DYYDvOyhsO6xMTt5O3w8VAxx2NWeCK0OUp0lAORgq3hYjeCwr5icniA6qAc5MpmBk29i+oHVhUsCr0PGDWGlpGrrQLPEW8Z5Pc7hytRqJHvZzQBxorpM2SQ5e2OE6VXM7sZ77LbYKnsJI/YvnYSfYkWw1U+PKx09ZYl5yTzjI0DpnMzpU1YVfMsLORhcH0MCbHyt6IONM5yNoVb9mus18mFBydRUYFlxg63EjeN//zTlg=="]
+        }
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "condohub-spa",
+      "name": "CondoHub · aplicaciones web (shell y micro frontends)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:5174/*",
+        "http://localhost:5175/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:4200"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    },
+    {
+      "clientId": "condohub-servicios",
+      "name": "CondoHub · llamadas entre servicios (n8n, agentes, reportes)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${CONDOHUB_SERVICIOS_SECRET}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-00000000a001",
+      "username": "admin@condohub.test",
+      "email": "admin@condohub.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Administrador",
+      "lastName": "CondoHub",
+      "credentials": [{ "type": "password", "value": "${USUARIOS_PRUEBA_PASSWORD}", "temporary": false }],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000a002",
+      "username": "residente@condohub.test",
+      "email": "residente@condohub.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Residente",
+      "lastName": "Demo",
+      "credentials": [{ "type": "password", "value": "${USUARIOS_PRUEBA_PASSWORD}", "temporary": false }],
+      "realmRoles": ["RESIDENTE"]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000a003",
+      "username": "guardia@condohub.test",
+      "email": "guardia@condohub.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Guardia",
+      "lastName": "Portería",
+      "credentials": [{ "type": "password", "value": "${USUARIOS_PRUEBA_PASSWORD}", "temporary": false }],
+      "realmRoles": ["GUARDIA"]
+    }
+  ]
+}

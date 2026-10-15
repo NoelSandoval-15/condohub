@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: CondoHub · Reservas
+  version: 1.0.0
+  description: |
+    Reservas de áreas comunes y orquestador de la saga de reserva. Contexto delimitado **Reservas**; responsable: Erick.
+
+    - Solicitar una reserva inicia la **saga** (Gestión aplica cargos, Acceso emite pases); la respuesta es `202` con la reserva
+      en `SOLICITADA`, y pasa a `CONFIRMADA` o `FALLIDA` cuando termina la saga (R8, S1–S3).
+    - Todo endpoint exige JWT de Keycloak. Los roles son una propuesta derivada de las reglas R1–R8: confirmar con Erick.
+    - Las escrituras que pueden venir de una PWA llevan `Idempotency-Key` (UUID v4): repetir la misma clave devuelve la misma respuesta (O1–O3).
+    - Los datos editables llevan `version`; una versión vieja responde `409` (O5). **No se crean reservas sin conexión** (O6).
+    - Errores en `application/problem+json`; `code` es el código de la regla violada (ej. `R3`, `R4`).
+servers:
+  - url: http://localhost:8080/reservas
+    description: A través del gateway (`GATEWAY_PORT` cambia el puerto)
+  - url: http://localhost:8082
+    description: Directo al servicio (desarrollo)
+security:
+  - bearerAuth: []
+tags:
+  - name: Salud
+  - name: Áreas
+  - name: Reservas
+  - name: Sagas
+
+paths:
+  /api/salud:
+    get:
+      tags: [Salud]
+      operationId: salud
+      summary: Estado del servicio ("hola" del hito H1)
+      description: Cualquier rol autenticado.
+      responses:
+        '200':
+          description: Servicio vivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Salud' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /api/areas:
+    get:
+      tags: [Áreas]
+      operationId: listarAreas
+      summary: Catálogo de áreas comunes
+      description: Cualquier rol autenticado (R1).
+      responses:
+        '200':
+          description: Áreas activas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AreaComun' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /api/reservas:
+    post:
+      tags: [Reservas]
+      operationId: solicitarReserva
+      summary: Solicitar una reserva
+      description: |
+        Valida R2 (horario 08:00–23:00, bloques mínimos, sin solape), R3 (anticipación de 48 h a 60 días, máximo 2 activas por
+        unidad) y R4 (unidad con 2 o más expensas vencidas no reserva; se consulta a Gestión antes de iniciar la saga).
+        Roles: `RESIDENTE` (para su unidad) y `ADMIN`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NuevaReserva' }
+      responses:
+        '202':
+          description: Reserva aceptada; la saga está en curso
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+    get:
+      tags: [Reservas]
+      operationId: listarReservas
+      summary: Listar reservas
+      description: El `RESIDENTE` ve solo las de su unidad; el `ADMIN` ve todas.
+      parameters:
+        - { name: unidadId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: estado, in: query, required: false, schema: { $ref: '#/components/schemas/EstadoReserva' } }
+      responses:
+        '200':
+          description: Reservas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Reserva' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /api/reservas/{id}/cancelar:
+    post:
+      tags: [Reservas]
+      operationId: cancelarReserva
+      summary: Cancelar una reserva confirmada
+      description: |
+        R7: hasta 48 h antes se anulan los cargos; después se mantiene el costo de uso y se devuelve la garantía.
+        Solo desde `CONFIRMADA` (R8). Roles: `RESIDENTE` (la suya) y `ADMIN`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelarReserva' }
+      responses:
+        '200':
+          description: Reserva cancelada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+
+  /api/reservas/{id}/finalizar:
+    post:
+      tags: [Reservas]
+      operationId: finalizarReserva
+      summary: Marcar la reserva como finalizada
+      description: |
+        R6: si no hay daños, la garantía se devuelve (nota de crédito en Gestión). Solo desde `CONFIRMADA` (R8). Solo `ADMIN`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FinalizarReserva' }
+      responses:
+        '200':
+          description: Reserva finalizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+
+  /api/sagas/requieren-revision:
+    get:
+      tags: [Sagas]
+      operationId: sagasQueRequierenRevision
+      summary: Sagas atascadas que necesitan a una persona
+      description: |
+        S3: una compensación que no se logró deja la saga en `REQUIERE_REVISION`; aparece en la consola del `ADMIN`. Solo `ADMIN`.
+      responses:
+        '200':
+          description: Sagas por revisar
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Saga' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID v4 generado en el cliente (O1). Repetirlo devuelve la misma respuesta que la primera vez (O3).
+      schema: { type: string, format: uuid }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token del realm `condohub` de Keycloak; los roles vienen en `realm_access.roles`.
+  schemas:
+    Decimal:
+      type: string
+      pattern: '^\d+\.\d{2}$'
+      description: Dinero como string decimal con 2 decimales (F10). Nunca número.
+      example: '150.00'
+
+    Salud:
+      type: object
+      required: [servicio, estado]
+      properties:
+        servicio: { type: string, example: reservas }
+        estado: { type: string, enum: [OK] }
+
+    TipoArea:
+      type: string
+      enum: [SALON_EVENTOS, PISCINA, CHURRASQUERA]
+
+    AreaComun:
+      type: object
+      required: [id, codigo, nombre, tipo, aforo, horaApertura, horaCierre, bloqueMinimoHoras, costoUso, garantia]
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string }
+        nombre: { type: string }
+        tipo: { $ref: '#/components/schemas/TipoArea' }
+        aforo: { type: integer, minimum: 1 }
+        horaApertura: { type: string, example: '08:00' }
+        horaCierre: { type: string, example: '23:00' }
+        bloqueMinimoHoras: { type: integer, minimum: 1, example: 2 }
+        costoUso: { $ref: '#/components/schemas/Decimal' }
+        garantia: { $ref: '#/components/schemas/Decimal', description: 'Solo el salón de eventos tiene garantía (R5)' }
+
+    EstadoReserva:
+      type: string
+      enum: [SOLICITADA, CONFIRMADA, FINALIZADA, FALLIDA, CANCELADA]
+
+    Invitado:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, maxLength: 120 }
+        documento: { type: string, maxLength: 30 }
+
+    NuevaReserva:
+      type: object
+      required: [areaId, unidadId, inicio, fin]
+      properties:
+        areaId: { type: string, format: uuid }
+        unidadId: { type: string, format: uuid, description: 'El RESIDENTE solo puede reservar para su unidad' }
+        inicio: { type: string, format: date-time, description: UTC }
+        fin: { type: string, format: date-time, description: UTC }
+        invitados:
+          type: array
+          items: { $ref: '#/components/schemas/Invitado' }
+
+    Reserva:
+      type: object
+      required: [id, areaId, unidadId, inicio, fin, estado, costoUso, garantia, version]
+      properties:
+        id: { type: string, format: uuid }
+        areaId: { type: string, format: uuid }
+        unidadId: { type: string, format: uuid }
+        inicio: { type: string, format: date-time }
+        fin: { type: string, format: date-time }
+        estado: { $ref: '#/components/schemas/EstadoReserva' }
+        costoUso: { $ref: '#/components/schemas/Decimal' }
+        garantia: { $ref: '#/components/schemas/Decimal' }
+        cantidadInvitados: { type: integer, minimum: 0 }
+        conDanios: { type: boolean, nullable: true, description: 'Solo cuando está FINALIZADA (R6)' }
+        motivo: { type: string, nullable: true, description: 'Obligatorio si está FALLIDA o CANCELADA' }
+        version: { type: integer, minimum: 0, description: 'Bloqueo optimista (O5)' }
+
+    CancelarReserva:
+      type: object
+      required: [version]
+      properties:
+        motivo: { type: string, maxLength: 300 }
+        version: { type: integer, minimum: 0 }
+
+    FinalizarReserva:
+      type: object
+      required: [conDanios, version]
+      properties:
+        conDanios: { type: boolean }
+        version: { type: integer, minimum: 0 }
+
+    Saga:
+      type: object
+      required: [id, reservaId, estado, pasoActual]
+      properties:
+        id: { type: string, format: uuid, description: 'Es el sagaId de los eventos' }
+        reservaId: { type: string, format: uuid }
+        estado: { type: string, enum: [EN_CURSO, COMPLETADA, COMPENSANDO, COMPENSADA, REQUIERE_REVISION] }
+        pasoActual: { type: integer, minimum: 1, maximum: 4 }
+        ultimoError: { type: string, nullable: true }
+    Problema:
+      type: object
+      description: RFC 7807
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, description: 'Código de la regla violada, si aplica (R3, A2...)', example: R3 }
+  responses:
+    SolicitudInvalida:
+      description: Forma de la solicitud inválida (campos ausentes o con formato incorrecto)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoAutenticado:
+      description: Falta el token o es inválido
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    SinPermiso:
+      description: El rol del token no puede usar este endpoint
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoEncontrado:
+      description: El recurso no existe
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ReglaViolada:
+      description: Una regla de negocio lo impide; `code` indica cuál
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    Conflicto:
+      description: La versión enviada está desactualizada (O5) o el estado actual no permite la operación
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }

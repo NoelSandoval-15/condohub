@@ -1,0 +1,360 @@
+openapi: 3.0.3
+info:
+  title: CondoHub · Servicio IA
+  version: 1.0.0
+  description: |
+    Visión (rostros, placas) y voz (reportes) de CondoHub. Contexto delimitado **IA**; responsable: Luis.
+
+    - Las respuestas de visión siempre llevan `confianza`, `modelo` y `version` (I5). Este servicio **no** decide
+      nada de portería: Acceso traduce estas respuestas con su capa anticorrupción y es quien abre o no (A4, A5).
+    - Todo endpoint exige JWT de Keycloak (realm `condohub`) y autoriza por rol del token.
+    - Errores en `application/problem+json`; `code` es el código de la regla violada cuando aplica (ej. `I1`).
+    - No se loguean ni devuelven imágenes, embeddings ni audio (I1, I6).
+servers:
+  - url: http://localhost:8080/ia
+    description: A través del gateway (puerto 8080 por defecto; `GATEWAY_PORT` lo cambia)
+  - url: http://localhost:8083
+    description: Directo al servicio (desarrollo)
+security:
+  - bearerAuth: []
+tags:
+  - name: Salud
+  - name: Rostros
+  - name: Placas
+  - name: Reportes
+
+paths:
+  /salud:
+    get:
+      tags: [Salud]
+      operationId: salud
+      summary: Estado del servicio ("hola" del hito H1)
+      description: Cualquier rol autenticado. Responde aunque los modelos aún no estén cargados (`modelosCargados` en `false`).
+      responses:
+        '200':
+          description: Servicio vivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Salud' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /rostros/identificar:
+    post:
+      tags: [Rostros]
+      operationId: identificarRostro
+      summary: Identificar el rostro de una imagen
+      description: |
+        Detecta (MTCNN), alinea y calcula el embedding; compara contra los perfiles con consentimiento vigente (I1).
+        `RECONOCIDO` si la similitud coseno es ≥ umbral calibrado (I2; inicial 0.70). Si no, `DESCONOCIDO`, y el embedding
+        se guarda 30 días (I3) para el agrupamiento nocturno (I4). Toda predicción queda registrada (I5).
+        El resultado **asiste** al guardia; nunca abre ni bloquea por sí solo (A5).
+        Roles: `GUARDIA`, `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagen]
+              properties:
+                imagen: { type: string, format: binary, description: 'JPEG o PNG' }
+                camara: { type: string, description: 'Identificador de la cámara de origen (opcional)' }
+      responses:
+        '200':
+          description: Resultado de la identificación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentificacionRostro' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /rostros/registrar:
+    post:
+      tags: [Rostros]
+      operationId: registrarRostro
+      summary: Registrar el perfil facial de un residente
+      description: |
+        Solo con consentimiento explícito, con fecha y versión del texto aceptado (I1). Sin consentimiento → 422 con `code: I1`.
+        Guarda los embeddings (no las fotos en la base; las fotos van a MinIO). Rol: `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [residenteId, unidadId, consentimientoFecha, consentimientoVersion, fotos]
+              properties:
+                residenteId: { type: string, format: uuid }
+                unidadId: { type: string, format: uuid }
+                consentimientoFecha: { type: string, format: date-time, description: 'Momento en que el residente aceptó (UTC)' }
+                consentimientoVersion: { type: string, description: 'Versión del texto de consentimiento aceptado' }
+                fotos:
+                  type: array
+                  minItems: 1
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Perfil registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PerfilRegistrado' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+
+  /rostros/{residenteId}:
+    delete:
+      tags: [Rostros]
+      operationId: retirarConsentimiento
+      summary: Retirar el consentimiento y borrar el perfil facial
+      description: |
+        Borra fotos y embeddings del residente en menos de 24 h (I1). Es idempotente: repetirlo devuelve la misma respuesta.
+        Roles: `ADMIN`, o el `RESIDENTE` dueño del perfil.
+      parameters:
+        - name: residenteId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Borrado aceptado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RetiroAceptado' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /placas/leer:
+    post:
+      tags: [Placas]
+      operationId: leerPlaca
+      summary: Leer la placa de una imagen de vehículo
+      description: |
+        Detección (YOLOv8n) + OCR. Devuelve el texto leído y la confianza; **no** decide el ingreso: el umbral de 0.85 (A4)
+        lo aplica Acceso. Roles: `GUARDIA`, `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagen]
+              properties:
+                imagen: { type: string, format: binary, description: 'JPEG o PNG' }
+      responses:
+        '200':
+          description: Resultado de la lectura
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LecturaPlaca' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /modelos/placas/actual:
+    get:
+      tags: [Placas]
+      operationId: modeloPlacasActual
+      summary: Modelo de placas activo, para correrlo en el dispositivo del guardia
+      description: |
+        Devuelve la URL firmada del ONNX cuantizado (int8) que la PWA de guardia descarga y ejecuta sin red (O6).
+        Roles: `GUARDIA`, `ADMIN`.
+      responses:
+        '200':
+          description: Modelo activo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModeloPlacas' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /reportes/voz:
+    post:
+      tags: [Reportes]
+      operationId: crearReportePorVoz
+      summary: Crear un reporte a partir de una instrucción de voz
+      description: |
+        Audio → Whisper → LLM arma una consulta GraphQL **de solo lectura** contra Gestión → Excel o PDF (G4).
+        Cualquier operación que no sea `query` se rechaza con 422 `code: G4`. Se guardan el texto, la consulta y el archivo.
+        El proceso es asíncrono: se consulta el avance con `GET /reportes/{id}`. Solo `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: 'WAV, MP3 o WebM' }
+                formato:
+                  type: string
+                  enum: [EXCEL, PDF]
+                  description: 'Si se omite, se toma de lo que diga la instrucción; por defecto EXCEL'
+      responses:
+        '202':
+          description: Reporte en proceso
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reporte' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+
+  /reportes/{id}:
+    get:
+      tags: [Reportes]
+      operationId: obtenerReporte
+      summary: Estado y archivo de un reporte
+      description: Solo `ADMIN`. Cuando `estado = LISTO`, `archivoUrl` es una URL firmada y temporal del archivo.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reporte' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token del realm `condohub` de Keycloak; los roles vienen en `realm_access.roles`.
+
+  schemas:
+    Confianza:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      description: Confianza de la predicción, de 0 a 1 (I5)
+
+    Salud:
+      type: object
+      required: [servicio, estado, modelosCargados]
+      properties:
+        servicio: { type: string, example: ia }
+        estado: { type: string, enum: [OK] }
+        modelosCargados: { type: boolean }
+
+    IdentificacionRostro:
+      type: object
+      required: [resultado, confianza, modelo, version, prediccionId]
+      properties:
+        resultado:
+          type: string
+          enum: [RECONOCIDO, DESCONOCIDO, SIN_ROSTRO]
+          description: SIN_ROSTRO si no se detectó ningún rostro en la imagen
+        residenteId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Solo cuando `resultado = RECONOCIDO`
+        confianza: { $ref: '#/components/schemas/Confianza' }
+        modelo: { type: string, example: facenet-triplet }
+        version: { type: string, example: '1.0.0' }
+        prediccionId: { type: string, description: 'Id del registro en `predicciones` (I5)' }
+
+    PerfilRegistrado:
+      type: object
+      required: [residenteId, embeddings, modelo, version]
+      properties:
+        residenteId: { type: string, format: uuid }
+        embeddings: { type: integer, minimum: 1, description: 'Cantidad de embeddings guardados' }
+        modelo: { type: string }
+        version: { type: string }
+
+    RetiroAceptado:
+      type: object
+      required: [residenteId, borradoAntesDe]
+      properties:
+        residenteId: { type: string, format: uuid }
+        borradoAntesDe: { type: string, format: date-time, description: 'Plazo máximo para completar el borrado (I1: < 24 h)' }
+
+    LecturaPlaca:
+      type: object
+      required: [resultado, confianza, modelo, version, prediccionId]
+      properties:
+        resultado: { type: string, enum: [PLACA_LEIDA, SIN_PLACA] }
+        placa:
+          type: string
+          nullable: true
+          description: Texto leído, en mayúsculas y sin separadores; solo si `resultado = PLACA_LEIDA`
+        confianza: { $ref: '#/components/schemas/Confianza' }
+        modelo: { type: string, example: yolov8n-easyocr }
+        version: { type: string }
+        prediccionId: { type: string }
+
+    ModeloPlacas:
+      type: object
+      required: [modelo, version, formato, url, sha256, expiraEn]
+      properties:
+        modelo: { type: string }
+        version: { type: string }
+        formato: { type: string, enum: [onnx-int8] }
+        url: { type: string, format: uri, description: 'URL firmada de MinIO' }
+        sha256: { type: string, description: 'Hash del archivo, para verificar la descarga' }
+        expiraEn: { type: string, format: date-time }
+
+    Reporte:
+      type: object
+      required: [id, estado]
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, enum: [PROCESANDO, LISTO, FALLIDO] }
+        formato: { type: string, enum: [EXCEL, PDF] }
+        transcripcion: { type: string, description: 'Texto que entendió Whisper (G4)' }
+        consultaGraphql: { type: string, description: 'Consulta de solo lectura que armó el LLM (G4)' }
+        archivoUrl: { type: string, format: uri, description: 'URL firmada y temporal; solo con `estado = LISTO`' }
+        motivoFallo: { type: string, description: 'Solo con `estado = FALLIDO`' }
+
+    Problema:
+      type: object
+      description: RFC 7807
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, description: 'Código de la regla violada, si aplica (I1, G4...)', example: I1 }
+
+  responses:
+    SolicitudInvalida:
+      description: Forma de la solicitud inválida (archivo ausente o ilegible)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoAutenticado:
+      description: Falta el token o es inválido
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    SinPermiso:
+      description: El rol del token no puede usar este endpoint
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoEncontrado:
+      description: El recurso no existe
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ReglaViolada:
+      description: Una regla de negocio lo impide; `code` indica cuál (I1, G4...)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }

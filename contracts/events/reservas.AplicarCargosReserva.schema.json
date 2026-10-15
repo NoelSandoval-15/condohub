@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reservas.AplicarCargosReserva.schema.json",
+  "title": "reservas.AplicarCargosReserva",
+  "description": "Reservas pide a Gestión aplicar los cargos de la reserva (saga, paso 2). Si costoUso es 0 y no hay garantía, Gestión no crea cargos y responde igual con CargoAplicado sin cargoIds.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "reservas.AplicarCargosReserva"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reservaId",
+            "unidadId",
+            "costoUso"
+          ],
+          "properties": {
+            "reservaId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "areaComun": {
+              "type": "string"
+            },
+            "costoUso": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d{2}$",
+              "description": "Decimal como string con 2 decimales (F10)"
+            },
+            "garantia": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d{2}$",
+              "description": "Solo el salón de eventos (R5)"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

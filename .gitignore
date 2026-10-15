@@ -1,0 +1,10 @@
+# Cada carpeta de servicio y frontend es su propio repositorio
+services/*/
+frontends/*/
+.env
+**/node_modules/
+**/__pycache__/
+# Respaldos y editores
+*.zip
+.idea/
+.vscode/

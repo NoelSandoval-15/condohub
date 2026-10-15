@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "_sobre.schema.json",
+  "title": "Sobre común de eventos de CondoHub",
+  "description": "Todo mensaje publicado en el exchange condohub.events usa este sobre. Routing key = el valor de type. Se publica con Outbox (S4) y se consume de forma idempotente por eventId (S5).",
+  "type": "object",
+  "required": [
+    "eventId",
+    "type",
+    "occurredAt",
+    "version",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador único del mensaje; los consumidores lo guardan para descartar repetidos"
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z]+\\.[A-Z][A-Za-z]+$",
+      "description": "<contexto>.<Evento>, igual a la routing key"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC"
+    },
+    "sagaId": {
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Presente en los mensajes de la saga de reserva (S1)"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Versión del esquema de data"
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

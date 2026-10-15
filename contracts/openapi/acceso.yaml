@@ -1,0 +1,375 @@
+openapi: 3.0.3
+info:
+  title: CondoHub · Acceso y portería
+  version: 1.0.0
+  description: |
+    Visitas, pases QR, registros de ingreso y sincronización offline de la app del guardia. Contexto delimitado **Acceso**; responsable: Erick.
+
+    - Los registros de acceso son **append-only** (A3): nunca se editan ni se borran; un error se corrige con un registro nuevo que referencia al anterior.
+    - Toda escritura desde la PWA lleva `Idempotency-Key` (UUID v4) y la hora del dispositivo (O1). Repetir la clave devuelve la misma respuesta (mismo código y cuerpo) (O3).
+    - La app solo marca una operación como sincronizada al recibir 2xx (O4). Offline se permite registrar ingresos/salidas y validar pases ya descargados (O6).
+    - El reconocimiento facial y de placas **asiste** al guardia; este servicio nunca abre por sí solo (A4, A5).
+    - Todo endpoint exige JWT de Keycloak. Los roles son una propuesta derivada de A1–A3: confirmar con Erick.
+    - Errores en `application/problem+json`; `code` es el código de la regla violada (ej. `A2`).
+servers:
+  - url: http://localhost:8080/acceso
+    description: A través del gateway (`GATEWAY_PORT` cambia el puerto)
+  - url: http://localhost:3001
+    description: Directo al servicio (desarrollo)
+security:
+  - bearerAuth: []
+tags:
+  - name: Salud
+  - name: Visitas
+  - name: Pases
+  - name: Accesos
+  - name: Alertas
+
+paths:
+  /api/salud:
+    get:
+      tags: [Salud]
+      operationId: salud
+      summary: Estado del servicio ("hola" del hito H1)
+      description: Cualquier rol autenticado.
+      responses:
+        '200':
+          description: Servicio vivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Salud' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /api/visitas:
+    post:
+      tags: [Visitas]
+      operationId: registrarVisita
+      summary: Registrar una visita y emitir su pase QR
+      description: |
+        A1: el residente anuncia una visita y se emite un pase con ventana de validez (por defecto el día indicado, 07:00–23:59)
+        y un solo uso de ingreso. Roles: `RESIDENTE` (para su unidad) y `ADMIN`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NuevaVisita' }
+      responses:
+        '201':
+          description: Visita registrada y pase emitido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visita' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /api/pases/validar:
+    post:
+      tags: [Pases]
+      operationId: validarPase
+      summary: Validar un pase QR
+      description: |
+        A2: un pase vencido, usado o revocado se rechaza con motivo. Responde 200 con `valido: false` y el `motivo`.
+        Roles: `GUARDIA` y `ADMIN`.
+        TODO(regla): falta definir si validar **consume** el uso del pase o si lo consume el registro de ingreso (`POST /api/accesos`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ValidarPase' }
+      responses:
+        '200':
+          description: Resultado de la validación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaseValidado' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /api/pases/guardia:
+    get:
+      tags: [Pases]
+      operationId: pasesVigentesParaGuardia
+      summary: Pases vigentes para cachear en la PWA del guardia
+      description: "Permite validar pases sin conexión (O6). Roles: `GUARDIA` y `ADMIN`."
+      parameters:
+        - name: desde
+          in: query
+          required: false
+          description: Devuelve solo los pases creados o modificados desde ese instante (sincronización incremental)
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Pases vigentes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pase' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /api/accesos:
+    post:
+      tags: [Accesos]
+      operationId: registrarAcceso
+      summary: Registrar un ingreso o una salida
+      description: |
+        A3: solo se agrega. Para corregir un error se envía un registro nuevo con `corrigeA`. Sin pase, el guardia registra la visita
+        manualmente indicando la unidad que autoriza (A2). Una placa leída con confianza igual o mayor a 0.85 permite el ingreso; por debajo
+        decide el guardia (A4). Roles: `GUARDIA` y `ADMIN`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NuevoAcceso' }
+      responses:
+        '201':
+          description: Registro creado (o, si la clave ya existía, la misma respuesta de la primera vez)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistroAcceso' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '422': { $ref: '#/components/responses/ReglaViolada' }
+
+  /api/sync:
+    post:
+      tags: [Accesos]
+      operationId: sincronizarLote
+      summary: Sincronizar un lote de operaciones hechas sin conexión
+      description: |
+        O1–O4: cada operación lleva su propia `Idempotency-Key` y la hora del dispositivo. El servidor responde **una entrada por operación**
+        con el código HTTP que habría tenido por separado; enviar el mismo lote dos veces no duplica registros y devuelve las mismas respuestas.
+        Roles: `GUARDIA` y `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoteSync' }
+      responses:
+        '200':
+          description: Resultado por operación (el lote en sí siempre responde 200 si es válido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResultadoLote' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /api/alertas:
+    get:
+      tags: [Alertas]
+      operationId: listarAlertas
+      summary: Alertas para el guardia
+      description: |
+        I4: «visitante recurrente no registrado», generada a partir del evento `ia.VisitanteRecurrenteDetectado`.
+        Roles: `GUARDIA` y `ADMIN`.
+      parameters:
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Alertas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Alerta' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID v4 generado en el dispositivo (O1). Repetirlo devuelve la misma respuesta que la primera vez (O3).
+      schema: { type: string, format: uuid }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token del realm `condohub` de Keycloak; los roles vienen en `realm_access.roles`.
+  schemas:
+    Salud:
+      type: object
+      required: [servicio, estado]
+      properties:
+        servicio: { type: string, example: acceso }
+        estado: { type: string, enum: [OK] }
+
+    NuevaVisita:
+      type: object
+      required: [unidadCodigo, nombre, fecha]
+      properties:
+        unidadCodigo: { type: string, example: A-101, description: 'Acceso identifica la unidad por su código' }
+        nombre: { type: string, maxLength: 120 }
+        documento: { type: string, maxLength: 30 }
+        fecha: { type: string, format: date, description: 'Día de la visita; la ventana por defecto es 07:00–23:59' }
+
+    Visita:
+      type: object
+      required: [visitaId, unidadCodigo, nombre, fecha, pase]
+      properties:
+        visitaId: { type: string }
+        unidadCodigo: { type: string }
+        nombre: { type: string }
+        documento: { type: string }
+        fecha: { type: string, format: date }
+        pase: { $ref: '#/components/schemas/Pase' }
+
+    EstadoPase:
+      type: string
+      enum: [VIGENTE, USADO, REVOCADO, VENCIDO]
+
+    Pase:
+      type: object
+      required: [codigo, unidadCodigo, estado, usos, usosMaximos, validoDesde, validoHasta]
+      properties:
+        codigo: { type: string, description: 'Contenido del QR' }
+        visitaId: { type: string }
+        unidadCodigo: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoPase' }
+        usos: { type: integer, minimum: 0 }
+        usosMaximos: { type: integer, minimum: 1, example: 1 }
+        validoDesde: { type: string, format: date-time }
+        validoHasta: { type: string, format: date-time }
+        origen: { type: string, enum: [VISITA, RESERVA] }
+
+    ValidarPase:
+      type: object
+      required: [codigo]
+      properties:
+        codigo: { type: string }
+
+    PaseValidado:
+      type: object
+      required: [valido]
+      properties:
+        valido: { type: boolean }
+        motivo:
+          type: string
+          enum: [VENCIDO, USADO, REVOCADO, NO_EXISTE]
+          description: Solo cuando `valido` es false (A2)
+        pase: { $ref: '#/components/schemas/Pase' }
+
+    NuevoAcceso:
+      type: object
+      required: [sentido, categoria, horaDispositivo]
+      properties:
+        sentido: { type: string, enum: [INGRESO, SALIDA] }
+        categoria: { type: string, enum: [PEATON, VEHICULO] }
+        unidadCodigo: { type: string, description: 'Unidad destino; en ingreso manual es la unidad que autoriza (A2)' }
+        paseCodigo: { type: string, description: 'Si entra con pase QR' }
+        placa: { type: string, example: 1001ABC }
+        confianzaPlaca: { type: number, minimum: 0, maximum: 1, description: 'Confianza de la lectura de placa (A4)' }
+        resultado: { type: string, enum: [PERMITIDO, RECHAZADO] }
+        motivo: { type: string, description: 'Motivo del rechazo (A2)' }
+        corrigeA: { type: string, description: 'registroId del registro que este corrige (A3)' }
+        horaDispositivo: { type: string, format: date-time, description: 'Hora del dispositivo; se guarda aparte de la del servidor (O1)' }
+
+    RegistroAcceso:
+      allOf:
+        - $ref: '#/components/schemas/NuevoAcceso'
+        - type: object
+          required: [registroId, horaServidor, guardiaSub]
+          properties:
+            registroId: { type: string }
+            horaServidor: { type: string, format: date-time }
+            guardiaSub: { type: string, description: 'sub de Keycloak del guardia que lo registró' }
+
+    OperacionSync:
+      type: object
+      required: [idempotencyKey, tipo, datos]
+      properties:
+        idempotencyKey: { type: string, format: uuid }
+        tipo: { type: string, enum: [ACCESO], description: 'Por ahora solo se sincronizan registros de acceso (O6)' }
+        datos: { $ref: '#/components/schemas/NuevoAcceso' }
+
+    LoteSync:
+      type: object
+      required: [operaciones]
+      properties:
+        operaciones:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/OperacionSync' }
+
+    ResultadoOperacion:
+      type: object
+      required: [idempotencyKey, codigo]
+      properties:
+        idempotencyKey: { type: string, format: uuid }
+        codigo: { type: integer, description: 'Código HTTP que habría tenido la operación por separado' }
+        cuerpo: { type: object, additionalProperties: true, description: 'RegistroAcceso o Problema, según el código' }
+
+    ResultadoLote:
+      type: object
+      required: [resultados]
+      properties:
+        resultados:
+          type: array
+          items: { $ref: '#/components/schemas/ResultadoOperacion' }
+
+    Alerta:
+      type: object
+      required: [id, tipo, creadaEn]
+      properties:
+        id: { type: string }
+        tipo: { type: string, enum: [VISITANTE_RECURRENTE] }
+        clusterId: { type: string }
+        apariciones: { type: integer, minimum: 3 }
+        creadaEn: { type: string, format: date-time }
+
+    Problema:
+      type: object
+      description: RFC 7807
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, description: 'Código de la regla violada, si aplica (R3, A2...)', example: R3 }
+  responses:
+    SolicitudInvalida:
+      description: Forma de la solicitud inválida (campos ausentes o con formato incorrecto)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoAutenticado:
+      description: Falta el token o es inválido
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    SinPermiso:
+      description: El rol del token no puede usar este endpoint
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoEncontrado:
+      description: El recurso no existe
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ReglaViolada:
+      description: Una regla de negocio lo impide; `code` indica cuál
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    Conflicto:
+      description: La versión enviada está desactualizada (O5) o el estado actual no permite la operación
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }

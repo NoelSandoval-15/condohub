@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: CondoHub · Agentes
+  version: 1.0.0
+  description: |
+    Misiones de gestión que ejecuta un agente LLM. Contexto de soporte **Agentes**; responsable: Aldana.
+
+    - El agente solo actúa mediante herramientas MCP (G2). Lo que cree cargos o mueva dinero **no se ejecuta**: queda como
+      una confirmación pendiente hasta que un `ADMIN` identificado la aprueba (G2, F5).
+    - Cada paso queda en la bitácora de MongoDB (G3): herramienta, entrada, salida y quién confirmó.
+    - Todo endpoint exige JWT de Keycloak. Los roles son una propuesta derivada de G1 y G2: confirmar con Aldana.
+    - Errores en `application/problem+json`; `code` es el código de la regla violada cuando aplica.
+servers:
+  - url: http://localhost:8080/agentes
+    description: A través del gateway (`GATEWAY_PORT` cambia el puerto)
+  - url: http://localhost:8084
+    description: Directo al servicio (desarrollo)
+security:
+  - bearerAuth: []
+tags:
+  - name: Salud
+  - name: Misiones
+  - name: Confirmaciones
+
+paths:
+  /salud:
+    get:
+      tags: [Salud]
+      operationId: salud
+      summary: Estado del servicio ("hola" del hito H1)
+      description: Cualquier rol autenticado.
+      responses:
+        '200':
+          description: Servicio vivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Salud' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /misiones:
+    post:
+      tags: [Misiones]
+      operationId: lanzarMision
+      summary: Lanzar una misión
+      description: |
+        Por ejemplo «Gestiona la morosidad del mes» (G1). La misión se ejecuta en segundo plano y se consulta con
+        `GET /misiones/{id}`; si el agente pide una acción de escritura queda `ESPERANDO_CONFIRMACION`. Solo `ADMIN`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NuevaMision' }
+      responses:
+        '202':
+          description: Misión aceptada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mision' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /misiones/{id}:
+    get:
+      tags: [Misiones]
+      operationId: obtenerMision
+      summary: Estado de una misión y sus confirmaciones pendientes
+      description: Solo `ADMIN`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Misión
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mision' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /confirmaciones/{id}/aprobar:
+    post:
+      tags: [Confirmaciones]
+      operationId: aprobarConfirmacion
+      summary: Aprobar una acción pendiente
+      description: |
+        El `ADMIN` autoriza la acción; recién entonces el agente la ejecuta. Queda registrado quién aprobó y cuándo (G3).
+        Repetirlo sobre una confirmación ya resuelta devuelve 409.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Confirmación aprobada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Confirmacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /confirmaciones/{id}/rechazar:
+    post:
+      tags: [Confirmaciones]
+      operationId: rechazarConfirmacion
+      summary: Rechazar una acción pendiente
+      description: El `ADMIN` rechaza; el agente no ejecuta la acción y la misión continúa o termina `INCOMPLETA`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Confirmación rechazada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Confirmacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token del realm `condohub` de Keycloak; los roles vienen en `realm_access.roles`.
+  schemas:
+    Salud:
+      type: object
+      required: [servicio, estado]
+      properties:
+        servicio: { type: string, example: agentes }
+        estado: { type: string, enum: [OK] }
+
+    NuevaMision:
+      type: object
+      required: [objetivo]
+      properties:
+        tipo: { type: string, enum: [GESTIONAR_MOROSIDAD, LIBRE], default: GESTIONAR_MOROSIDAD }
+        objetivo: { type: string, example: Gestiona la morosidad de octubre 2026 }
+
+    Mision:
+      type: object
+      required: [id, tipo, objetivo, estado]
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { type: string, enum: [GESTIONAR_MOROSIDAD, LIBRE] }
+        objetivo: { type: string }
+        estado:
+          type: string
+          enum: [EN_CURSO, ESPERANDO_CONFIRMACION, COMPLETADA, INCOMPLETA, CANCELADA, ERROR]
+          description: INCOMPLETA si se alcanzó el límite de pasos (por defecto 15)
+        confirmacionesPendientes:
+          type: array
+          items: { $ref: '#/components/schemas/Confirmacion' }
+
+    Confirmacion:
+      type: object
+      required: [id, misionId, herramienta, riesgo, estado]
+      properties:
+        id: { type: string, format: uuid }
+        misionId: { type: string, format: uuid }
+        herramienta: { type: string, example: proponer_recargo }
+        argumentos: { type: object, additionalProperties: true }
+        riesgo: { type: string, enum: [ESCRITURA, DINERO] }
+        estado: { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA, EJECUTADA, FALLIDA] }
+    Problema:
+      type: object
+      description: RFC 7807
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, description: 'Código de la regla violada, si aplica (R3, A2...)', example: R3 }
+  responses:
+    SolicitudInvalida:
+      description: Forma de la solicitud inválida (campos ausentes o con formato incorrecto)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoAutenticado:
+      description: Falta el token o es inválido
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    SinPermiso:
+      description: El rol del token no puede usar este endpoint
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    NoEncontrado:
+      description: El recurso no existe
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ReglaViolada:
+      description: Una regla de negocio lo impide; `code` indica cuál
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    Conflicto:
+      description: La versión enviada está desactualizada (O5) o el estado actual no permite la operación
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }

@@ -1,0 +1,60 @@
+"""
+API GraphQL de Gestión (contexto Finanzas). Único GraphQL del sistema.
+v1 mínima: solo lo necesario para probar login, roles y la regla F1. Aldana la amplía
+(Unidad, Expensa, Cargo, morosos, mutations) siguiendo las reglas de contracts/CLAUDE.md.
+
+Autorización (la hace Gestión con el rol del token de Keycloak):
+  - salud:             cualquier rol autenticado.
+  - estadoDeCuenta:    ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
+  - pagosPendientes:   solo ADMIN.
+Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
+"""
+schema {
+  query: Query
+}
+
+"Dinero como string decimal con 2 decimales, ej. \"390.00\" (F10). Nunca número."
+scalar Decimal
+
+type Query {
+  "Estado del servicio (\"hola\" del hito H1)."
+  salud: Salud!
+
+  "Estado de cuenta de una unidad. F1: el RESIDENTE solo puede pedir la suya."
+  estadoDeCuenta(unidadId: ID!): EstadoDeCuenta!
+
+  "Pagos en estado PENDIENTE, a la espera de conciliación (F8). Solo ADMIN."
+  pagosPendientes: [Pago!]!
+}
+
+type Salud {
+  servicio: String!
+  estado: String!
+}
+
+type EstadoDeCuenta {
+  unidadId: ID!
+  codigo: String!
+  bloque: String!
+  deudaTotal: Decimal!
+  deudaVencida: Decimal!
+  "Cantidad de expensas vencidas e impagas (R4 bloquea reservas con 2 o más)."
+  expensasVencidas: Int!
+  saldoAFavor: Decimal!
+  moroso: Boolean!
+}
+
+enum EstadoPago {
+  PENDIENTE
+  CONFIRMADO
+  RECHAZADO
+}
+
+type Pago {
+  id: ID!
+  unidadId: ID!
+  monto: Decimal!
+  "Fecha del comprobante, ISO-8601 (yyyy-MM-dd)."
+  fechaPago: String!
+  estado: EstadoPago!
+}

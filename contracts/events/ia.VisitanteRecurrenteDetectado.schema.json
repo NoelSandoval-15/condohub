@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ia.VisitanteRecurrenteDetectado.schema.json",
+  "title": "ia.VisitanteRecurrenteDetectado",
+  "description": "DBSCAN nocturno encontró un clúster con 3 o más apariciones en días distintos (I4). Sin fotos ni embeddings (I1, I6). n8n notifica al guardia.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "ia.VisitanteRecurrenteDetectado"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clusterId",
+            "apariciones",
+            "diasDistintos",
+            "primeraVez",
+            "ultimaVez"
+          ],
+          "properties": {
+            "clusterId": {
+              "type": "string"
+            },
+            "apariciones": {
+              "type": "integer",
+              "minimum": 3
+            },
+            "diasDistintos": {
+              "type": "integer",
+              "minimum": 3
+            },
+            "primeraVez": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "ultimaVez": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "camara": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

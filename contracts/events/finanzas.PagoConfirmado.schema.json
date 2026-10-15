@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "finanzas.PagoConfirmado.schema.json",
+  "title": "finanzas.PagoConfirmado",
+  "description": "El ADMIN confirmó el pago; se emite el recibo (F8). n8n lo envía al residente.",
+  "allOf": [
+    {
+      "$ref": "_sobre.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "finanzas.PagoConfirmado"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pagoId",
+            "unidadId",
+            "monto",
+            "reciboNumero"
+          ],
+          "properties": {
+            "pagoId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "unidadId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "monto": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d{2}$",
+              "description": "Decimal como string con 2 decimales (F10)"
+            },
+            "reciboNumero": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

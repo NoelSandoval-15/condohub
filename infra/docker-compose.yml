@@ -1,0 +1,170 @@
+# CondoHub · infraestructura local
+# Capa de datos, RabbitMQ, Keycloak, gateway (Kong) y n8n listos (ver infra/CLAUDE.md).
+# Uso (desde la raíz del espacio de trabajo):
+#   docker compose -f infra/docker-compose.yml up -d
+# Las migraciones de PostgreSQL las corre cada servicio al arrancar (Flyway en Gestión, artisan migrate en Reservas).
+
+name: condohub
+
+services:
+  postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-condohub}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]       # si 5432 está ocupado por un PostgreSQL local: POSTGRES_PORT=5433
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro       # una base y un usuario por servicio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7.0
+    ports: ["27017:27017"]
+    volumes:
+      - mongo_data:/data/db
+      - ../services/ia/db/mongo-init.js:/docker-entrypoint-initdb.d/01-ia.js:ro
+      - ../services/agentes/db/mongo-init.js:/docker-entrypoint-initdb.d/02-agentes.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      retries: 10
+
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.2
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    user: root
+    ports: ["8000:8000"]
+    volumes:
+      - dynamo_data:/home/dynamodblocal/data
+
+  dynamodb-init:              # crea la tabla de Acceso y activa el TTL; termina y se apaga
+    image: amazon/aws-cli:2.17.0
+    depends_on: [dynamodb]
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - ../services/acceso/db/tabla-acceso.json:/init/tabla-acceso.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        sleep 3;
+        aws dynamodb describe-table --table-name condohub-acceso --endpoint-url http://dynamodb:8000 >/dev/null 2>&1 ||
+        aws dynamodb create-table --cli-input-json file:///init/tabla-acceso.json --endpoint-url http://dynamodb:8000 >/dev/null;
+        aws dynamodb update-time-to-live --table-name condohub-acceso --time-to-live-specification Enabled=true,AttributeName=expiraEn --endpoint-url http://dynamodb:8000 >/dev/null 2>&1;
+        echo 'Tabla condohub-acceso lista'
+
+  minio:                      # almacén S3 de imágenes, audio, comprobantes y pesos de modelos (I6). Hoy es SeaweedFS: ver docs/adr/0002-almacen-s3.md
+    image: chrislusf/seaweedfs:3.85
+    command: ["server", "-dir=/data", "-s3", "-s3.port=9000", "-s3.config=/etc/seaweedfs/s3.json", "-ip=minio", "-ip.bind=0.0.0.0"]
+    ports: ["9000:9000", "9333:9333"]      # S3 y panel del maestro de SeaweedFS (no hay consola web en 9001)
+    volumes:
+      - minio_data:/data
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro      # credenciales S3 de desarrollo (access key condohub)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:                   # eventos de dominio y saga: exchange condohub.events (topic) + DLQ
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbitmq_management load_definitions "/etc/rabbitmq/definitions.json"
+    ports: ["5672:5672", "15672:15672"]
+    volumes:
+      - rabbit_data:/var/lib/rabbitmq
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:                   # SSO: realm condohub con roles ADMIN/RESIDENTE/GUARDIA (se importa al arrancar)
+    image: quay.io/keycloak/keycloak:25.0.6
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_dev
+      KC_HOSTNAME: http://localhost:8180            # el issuer de los tokens es siempre este
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"       # los servicios dentro de Docker pueden usar keycloak:8080
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      USUARIOS_PRUEBA_PASSWORD: ${USUARIOS_PRUEBA_PASSWORD:-Condohub123!}
+      CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
+    ports: ["8180:8080"]
+    volumes:
+      - ./keycloak/realm-condohub.json:/opt/keycloak/data/import/realm-condohub.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  n8n:                        # automatizaciones (flujos de Luis); los flujos exportados viven en infra/n8n/flows
+    image: n8nio/n8n:1.64.0
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: n8n_dev
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-condohub-n8n-dev-key}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: America/La_Paz
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+    ports: ["5678:5678"]
+    volumes:
+      - n8n_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway:                    # Kong DB-less: valida JWT de Keycloak y enruta /gestion, /reservas, /acceso, /ia, /agentes
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: ["${GATEWAY_PORT:-8080}:8000"]       # si 8080 está ocupado en tu máquina: GATEWAY_PORT=8090
+    volumes:
+      - ./gateway/kong.yml:/kong/kong.yml:ro
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  pg_data:
+  mongo_data:
+  dynamo_data:
+  minio_data:
+  rabbit_data:
+  n8n_data:
