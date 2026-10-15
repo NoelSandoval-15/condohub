@@ -20,7 +20,27 @@ Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar.
 
 **Todavía no existe:** frontends `admin`, `residente` y `guardia`, el servidor MCP y el LLM de Agentes, flujos de n8n, y cualquier lógica de negocio más allá de lo de la tabla. Los esqueletos responden `501 NO_IMPLEMENTADO` en lo que falta.
 
-## 2. Levantar todo
+## 2. Clonar el espacio de trabajo y levantar todo
+
+Se clona primero la raíz y luego cada repo dentro de su carpeta (git crea `services/` y `frontends/` solo). Siempre se abre la carpeta `condohub` completa.
+
+```bash
+git clone https://github.com/NoelSandoval-15/EXAMEN-2---SW-II.git condohub
+cd condohub
+
+git clone https://github.com/luisrepo25/condohub-gestion.git    services/gestion
+git clone https://github.com/luisrepo25/condohub-reservas.git   services/reservas
+git clone https://github.com/luisrepo25/condohub-acceso.git     services/acceso
+git clone https://github.com/luisrepo25/condohub-ia.git         services/ia
+git clone https://github.com/luisrepo25/condohub-agentes.git    services/agentes
+
+git clone https://github.com/luisrepo25/condohub-shell.git      frontends/shell
+git clone https://github.com/luisrepo25/condohub-admin.git      frontends/admin
+git clone https://github.com/luisrepo25/condohub-residente.git  frontends/residente
+git clone https://github.com/luisrepo25/condohub-guardia.git    frontends/guardia
+```
+
+Requisitos: Git, Docker Desktop y Node 20+; Java 21 y Maven (Gestión); Python 3.11 (IA y Agentes); PHP 8.2+ con `pdo_pgsql` y Composer (Reservas). Después:
 
 ```bash
 cp .env.example .env
@@ -92,7 +112,7 @@ Hecho: pipeline MTCNN → FaceNet, línea base con métricas, registro con fotos
 | `pases/validar` (regla A1/A2) | ¿Validar un pase consume su único uso, o lo consume el registro de ingreso (`POST /api/accesos`)? Propuesta: lo consume el registro; validar solo consulta. Escribirlo en `reglas-de-negocio.md` antes del código | Erick (decide con el equipo) |
 | Umbral facial en tres zonas (regla I2) | Con un solo umbral no se separa bien a los desconocidos parecidos. Propuesta: alto = reconocido, intermedio = «dudoso, decide el guardia», bajo = desconocido. Cambia I2: primero acordarlo y escribirlo en `reglas-de-negocio.md` | Luis, con el equipo |
 | Fotos y consentimiento | Cada integrante aporta 30–50 fotos (3 sesiones) y 10–15 desconocidos con permiso. Completar los campos `[entre corchetes]` de `docs/negocio/consentimiento-facial.md` y definir dónde se guardan (privado, nunca en git) | todos |
-| Dónde viven los repos | Cada repo está en una cuenta de GitHub distinta (p. ej. el de la raíz en la de Erick y `condohub-ia` en la de Luis). Anotar aquí las URLs reales de los 10 y quién tiene acceso a cuáles | todos |
+| Dónde viven los repos (cerrada) | Las URLs reales están en la sección 2 («Clonar el espacio de trabajo»). La raíz está en la cuenta de Erick y los otros 9 en la de Luis, con los demás integrantes como colaboradores | — |
 
 ## 6. Convenciones que ya se aplican
 
