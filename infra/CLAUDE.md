@@ -110,6 +110,13 @@ Imagen `n8nio/n8n:1.64.0`, editor en <http://localhost:5678>, estado en la base 
 
 Exporta cada flujo a `n8n/flows/<nombre>.json` después de editarlo en la UI; sin credenciales dentro del JSON.
 
+**Estado**: implementado y probado el flujo **«Eventos de CondoHub»** (`n8n/flows/eventos-condohub.json`), que cubre las filas 2, 3 y 5 de la tabla (comprobante/recibo, alerta de cámara y reserva). Es un solo flujo porque los consumidores de una misma cola compiten: uno por evento, enrutado por tipo. Los flujos de cron (recordatorio diario, informe mensual) esperan la query `morosos` de Gestión y el cliente `condohub-servicios`.
+
+- **Correo**: Mailpit (`mailpit`, SMTP 1025, bandeja <http://localhost:8025>) hace de proveedor SMTP en desarrollo. Destinos: `GUARDIA_EMAIL` y `ADMIN_EMAIL`; el residente sale de `CONTACTOS_UNIDADES` (`{"<unidadId>":"correo"}`) y, sin entrada, el aviso va al ADMIN. `TODO(regla)`: sustituirlo por los contactos de Gestión cuando los exponga.
+- **Idempotencia (S5)**: se procesa un evento a la vez (`parallelMessages: 1`) y se guarda el `eventId` solo tras enviar el correo; un repetido no genera otro aviso.
+- **Fallos**: si el correo no sale, el evento original va a `condohub.dlq` con el motivo (puede tardar ~2 min si el SMTP está caído); reenviar el evento a mano lo entrega.
+- **Cargar y probar**: `node n8n/importar.mjs` (credenciales desde el entorno, importa y activa los flujos), `node n8n/probar.mjs` (5 correos + repetido) y `node n8n/probar-fallo.mjs` (SMTP caído). Si usas `CONTACTOS_UNIDADES` en el compose, pásalo también a `probar.mjs`.
+
 ## Comandos
 
 ```bash

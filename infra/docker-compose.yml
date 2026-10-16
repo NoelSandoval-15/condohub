@@ -118,6 +118,8 @@ services:
     image: n8nio/n8n:1.64.0
     depends_on:
       postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }      # el flujo de eventos lee la cola n8n.eventos
+      mailpit: { condition: service_started }
     environment:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres
@@ -132,11 +134,26 @@ services:
       GENERIC_TIMEZONE: America/La_Paz
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
+      # Destinatarios de los avisos (los lee el flujo con $env). CONTACTOS_UNIDADES es un JSON {"<unidadId>": "correo"}
+      # mientras Gestión no exponga los contactos por GraphQL; sin entrada, el aviso va al ADMIN.
+      GUARDIA_EMAIL: ${GUARDIA_EMAIL:-guardia@condohub.test}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@condohub.test}
+      CONTACTOS_UNIDADES: ${CONTACTOS_UNIDADES:-}
     ports: ["5678:5678"]
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./n8n/flows:/flows:ro                          # flujos exportados; se cargan con `node infra/n8n/importar.mjs`
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:                    # buzón de pruebas: recibe los correos de n8n sin salir a Internet (SMTP 1025, web 8025)
+    image: axllent/mailpit:v1.20
+    ports: ["8025:8025", "1025:1025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
       interval: 10s
       timeout: 5s
       retries: 10

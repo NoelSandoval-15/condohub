@@ -1,0 +1,351 @@
+{
+  "id": "evCondoHub000001",
+  "name": "Eventos de CondoHub",
+  "nodes": [
+    {
+      "id": "n01-evento-de-cond",
+      "name": "Evento de CondoHub",
+      "type": "n8n-nodes-base.rabbitmqTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "queue": "n8n.eventos",
+        "options": {
+          "acknowledge": "executionFinishes",
+          "jsonParseBody": true,
+          "onlyContent": true,
+          "assertQueue": false,
+          "parallelMessages": 1
+        }
+      },
+      "credentials": {
+        "rabbitmq": {
+          "id": "condohub-rabbitmq",
+          "name": "CondoHub RabbitMQ"
+        }
+      }
+    },
+    {
+      "id": "n02-interpretar-y-",
+      "name": "Interpretar y evitar duplicados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// S5: consumidor idempotente. Se descarta lo que no cumple el sobre del contrato y lo que ya se procesó.\nconst datos = $getWorkflowStaticData('global');\ndatos.procesados = datos.procesados || [];\nconst RUTAS = {\n  'ia.VisitanteRecurrenteDetectado': 0,\n  'finanzas.PagoRegistrado': 1,\n  'finanzas.PagoConfirmado': 2,\n  'reservas.ReservaConfirmada': 3,\n  'reservas.ReservaFallida': 4,\n};\nconst salida = [];\nfor (const item of $input.all()) {\n  const e = item.json;\n  const valido = e && typeof e.eventId === 'string' && typeof e.type === 'string' && e.data && typeof e.data === 'object';\n  if (!valido) continue;                              // mensaje ajeno al contrato\n  if (datos.procesados.includes(e.eventId)) continue;  // ya avisado: un repetido no genera otro correo\n  salida.push({ json: { ...e, ruta: e.type in RUTAS ? RUTAS[e.type] : 5 } });\n}\nreturn salida;"
+      }
+    },
+    {
+      "id": "n03-según-el-tipo",
+      "name": "Según el tipo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 6,
+        "output": "={{ $json.ruta }}"
+      }
+    },
+    {
+      "id": "n04-armar-aviso:-v",
+      "name": "Armar aviso: visitante recurrente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const hora = (iso) => new Date(iso).toLocaleString('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'medium', timeStyle: 'short' });\n// TODO(regla): el correo del residente debe salir de Gestión (GraphQL) cuando exponga los contactos por unidad.\n// Mientras tanto: CONTACTOS_UNIDADES = {\"<unidadId>\": \"correo\"}; sin entrada, el aviso va al ADMIN.\nconst contacto = (unidadId) => {\n  let mapa = {};\n  try { mapa = JSON.parse($env.CONTACTOS_UNIDADES || '{}'); } catch (e) { mapa = {}; }\n  return mapa[unidadId] || $env.ADMIN_EMAIL;\n};\nconst e = $json;\nconst d = e.data;\n// Sin fotos ni datos del rostro (I1, I6): solo cuántas veces y cuándo.\nconst camara = d.camara ? `\\nCámara: ${d.camara}` : '';\nreturn { json: { eventId: e.eventId, tipo: e.type, para: $env.GUARDIA_EMAIL,\n  asunto: 'Visitante recurrente no registrado',\n  texto: `Un visitante que no está registrado apareció ${d.apariciones} veces en ${d.diasDistintos} días distintos.\\n` +\n         `Primera vez: ${hora(d.primeraVez)}\\nÚltima vez: ${hora(d.ultimaVez)}${camara}\\n\\n` +\n         `Es una ayuda para el guardia: el sistema no abre ni bloquea a nadie por esto (A5).` } };"
+      }
+    },
+    {
+      "id": "n05-armar-aviso:-p",
+      "name": "Armar aviso: pago por conciliar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        150
+      ],
+      "parameters": {
+        "jsCode": "const hora = (iso) => new Date(iso).toLocaleString('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'medium', timeStyle: 'short' });\n// TODO(regla): el correo del residente debe salir de Gestión (GraphQL) cuando exponga los contactos por unidad.\n// Mientras tanto: CONTACTOS_UNIDADES = {\"<unidadId>\": \"correo\"}; sin entrada, el aviso va al ADMIN.\nconst contacto = (unidadId) => {\n  let mapa = {};\n  try { mapa = JSON.parse($env.CONTACTOS_UNIDADES || '{}'); } catch (e) { mapa = {}; }\n  return mapa[unidadId] || $env.ADMIN_EMAIL;\n};\nconst e = $json;\nconst d = e.data;\nconst extra = [d.banco ? `Banco: ${d.banco}` : '', d.nroOperacion ? `Operación: ${d.nroOperacion}` : ''].filter(Boolean).join('\\n');\nreturn { json: { eventId: e.eventId, tipo: e.type, para: $env.ADMIN_EMAIL,\n  asunto: 'Pago pendiente de conciliación',\n  texto: `Un residente registró un pago que espera su revisión.\\n\\nUnidad: ${d.unidadId}\\nMonto: ${d.monto}\\n` +\n         `Fecha del comprobante: ${d.fechaPago}${extra ? '\\n' + extra : ''}\\n\\n` +\n         `El pago sigue PENDIENTE hasta que el ADMIN lo confirme en la consola (F8, F9).` } };"
+      }
+    },
+    {
+      "id": "n06-armar-aviso:-r",
+      "name": "Armar aviso: recibo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const hora = (iso) => new Date(iso).toLocaleString('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'medium', timeStyle: 'short' });\n// TODO(regla): el correo del residente debe salir de Gestión (GraphQL) cuando exponga los contactos por unidad.\n// Mientras tanto: CONTACTOS_UNIDADES = {\"<unidadId>\": \"correo\"}; sin entrada, el aviso va al ADMIN.\nconst contacto = (unidadId) => {\n  let mapa = {};\n  try { mapa = JSON.parse($env.CONTACTOS_UNIDADES || '{}'); } catch (e) { mapa = {}; }\n  return mapa[unidadId] || $env.ADMIN_EMAIL;\n};\nconst e = $json;\nconst d = e.data;\nreturn { json: { eventId: e.eventId, tipo: e.type, para: contacto(d.unidadId),\n  asunto: `Recibo N° ${d.reciboNumero}`,\n  texto: `Su pago de ${d.monto} fue confirmado.\\n\\nRecibo N° ${d.reciboNumero}\\nUnidad: ${d.unidadId}\\n\\nGracias.` } };"
+      }
+    },
+    {
+      "id": "n07-armar-aviso:-r",
+      "name": "Armar aviso: reserva confirmada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        450
+      ],
+      "parameters": {
+        "jsCode": "const hora = (iso) => new Date(iso).toLocaleString('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'medium', timeStyle: 'short' });\n// TODO(regla): el correo del residente debe salir de Gestión (GraphQL) cuando exponga los contactos por unidad.\n// Mientras tanto: CONTACTOS_UNIDADES = {\"<unidadId>\": \"correo\"}; sin entrada, el aviso va al ADMIN.\nconst contacto = (unidadId) => {\n  let mapa = {};\n  try { mapa = JSON.parse($env.CONTACTOS_UNIDADES || '{}'); } catch (e) { mapa = {}; }\n  return mapa[unidadId] || $env.ADMIN_EMAIL;\n};\nconst e = $json;\nconst d = e.data;\nreturn { json: { eventId: e.eventId, tipo: e.type, para: contacto(d.unidadId),\n  asunto: 'Reserva confirmada',\n  texto: `Su reserva de ${d.areaComun} quedó confirmada.\\n\\nDesde: ${hora(d.inicio)}\\nHasta: ${hora(d.fin)}` } };"
+      }
+    },
+    {
+      "id": "n08-armar-aviso:-r",
+      "name": "Armar aviso: reserva fallida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        600
+      ],
+      "parameters": {
+        "jsCode": "const hora = (iso) => new Date(iso).toLocaleString('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'medium', timeStyle: 'short' });\n// TODO(regla): el correo del residente debe salir de Gestión (GraphQL) cuando exponga los contactos por unidad.\n// Mientras tanto: CONTACTOS_UNIDADES = {\"<unidadId>\": \"correo\"}; sin entrada, el aviso va al ADMIN.\nconst contacto = (unidadId) => {\n  let mapa = {};\n  try { mapa = JSON.parse($env.CONTACTOS_UNIDADES || '{}'); } catch (e) { mapa = {}; }\n  return mapa[unidadId] || $env.ADMIN_EMAIL;\n};\nconst e = $json;\nconst d = e.data;\nreturn { json: { eventId: e.eventId, tipo: e.type, para: contacto(d.unidadId),\n  asunto: 'No se pudo completar su reserva',\n  texto: `No fue posible completar su reserva.\\n\\nMotivo: ${d.motivo}\\n\\nNo se le cobró nada: cualquier cargo se anuló y el horario quedó libre.` } };"
+      }
+    },
+    {
+      "id": "n09-ignorar-tipo-d",
+      "name": "Ignorar tipo desconocido",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        800,
+        750
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n10-enviar-correo",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "condohub@condohub.test",
+        "toEmail": "={{ $json.para }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "condohub-smtp",
+          "name": "CondoHub SMTP"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "n11-marcar-como-pr",
+      "name": "Marcar como procesado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Solo se marca como procesado después de enviar el correo: si falló, el reintento manual no se confunde con un repetido.\nconst datos = $getWorkflowStaticData('global');\ndatos.procesados = datos.procesados || [];\nconst id = $('Interpretar y evitar duplicados').item.json.eventId;\nif (!datos.procesados.includes(id)) datos.procesados.push(id);\nif (datos.procesados.length > 500) datos.procesados = datos.procesados.slice(-500);\nreturn { json: { eventId: id, enviado: true } };"
+      }
+    },
+    {
+      "id": "n12-enviar-a-revis",
+      "name": "Enviar a revisión manual",
+      "type": "n8n-nodes-base.rabbitmq",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        420
+      ],
+      "parameters": {
+        "mode": "queue",
+        "queue": "condohub.dlq",
+        "sendInputData": false,
+        "message": "={{ JSON.stringify({ motivo: 'No se pudo enviar el aviso por correo', error: $json.error, evento: $('Interpretar y evitar duplicados').item.json }) }}",
+        "options": {
+          "assertQueue": false
+        }
+      },
+      "credentials": {
+        "rabbitmq": {
+          "id": "condohub-rabbitmq",
+          "name": "CondoHub RabbitMQ"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Evento de CondoHub": {
+      "main": [
+        [
+          {
+            "node": "Interpretar y evitar duplicados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar y evitar duplicados": {
+      "main": [
+        [
+          {
+            "node": "Según el tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Según el tipo": {
+      "main": [
+        [
+          {
+            "node": "Armar aviso: visitante recurrente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar aviso: pago por conciliar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar aviso: recibo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar aviso: reserva confirmada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar aviso: reserva fallida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignorar tipo desconocido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso: visitante recurrente": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso: pago por conciliar": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso: recibo": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso: reserva confirmada": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso: reserva fallida": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar correo": {
+      "main": [
+        [
+          {
+            "node": "Marcar como procesado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar a revisión manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  },
+  "pinData": {},
+  "tags": []
+}

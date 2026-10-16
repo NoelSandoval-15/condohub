@@ -1,0 +1,68 @@
+[
+  {
+    "eventId": "11111111-1111-4111-8111-000000000001",
+    "type": "ia.VisitanteRecurrenteDetectado",
+    "occurredAt": "2026-10-20T06:00:00Z",
+    "version": 1,
+    "data": {
+      "clusterId": "cluster-demo-1",
+      "apariciones": 4,
+      "diasDistintos": 3,
+      "primeraVez": "2026-10-12T14:30:00Z",
+      "ultimaVez": "2026-10-19T22:10:00Z",
+      "camara": "porteria"
+    }
+  },
+  {
+    "eventId": "11111111-1111-4111-8111-000000000002",
+    "type": "finanzas.PagoRegistrado",
+    "occurredAt": "2026-10-20T13:00:00Z",
+    "version": 1,
+    "data": {
+      "pagoId": "22222222-2222-4222-8222-000000000001",
+      "unidadId": "00000000-0000-4000-8000-00000000a101",
+      "monto": "390.00",
+      "fechaPago": "2026-10-19",
+      "banco": "Banco Unión",
+      "nroOperacion": "OP-48213"
+    }
+  },
+  {
+    "eventId": "11111111-1111-4111-8111-000000000003",
+    "type": "finanzas.PagoConfirmado",
+    "occurredAt": "2026-10-20T15:00:00Z",
+    "version": 1,
+    "data": {
+      "pagoId": "22222222-2222-4222-8222-000000000001",
+      "unidadId": "00000000-0000-4000-8000-00000000a101",
+      "monto": "390.00",
+      "reciboNumero": "000123"
+    }
+  },
+  {
+    "eventId": "11111111-1111-4111-8111-000000000004",
+    "type": "reservas.ReservaConfirmada",
+    "occurredAt": "2026-10-20T16:00:00Z",
+    "version": 1,
+    "sagaId": "33333333-3333-4333-8333-000000000001",
+    "data": {
+      "reservaId": "44444444-4444-4444-8444-000000000001",
+      "unidadId": "00000000-0000-4000-8000-00000000a101",
+      "areaComun": "Salón de eventos",
+      "inicio": "2026-11-07T19:00:00Z",
+      "fin": "2026-11-07T23:00:00Z"
+    }
+  },
+  {
+    "eventId": "11111111-1111-4111-8111-000000000005",
+    "type": "reservas.ReservaFallida",
+    "occurredAt": "2026-10-20T16:05:00Z",
+    "version": 1,
+    "sagaId": "33333333-3333-4333-8333-000000000002",
+    "data": {
+      "reservaId": "44444444-4444-4444-8444-000000000002",
+      "unidadId": "00000000-0000-4000-8000-00000000a101",
+      "motivo": "El servicio de Acceso no respondió al emitir los pases"
+    }
+  }
+]
