@@ -49,6 +49,10 @@ curl -s -X POST http://localhost:8180/realms/condohub/protocol/openid-connect/to
 
 Token de servicio (`condohub-servicios`): mismo endpoint con `grant_type=client_credentials`, `client_id=condohub-servicios` y `client_secret`.
 
+### Crear cuentas reales y enlazarlas con su persona
+
+`node infra/keycloak/crear-cuenta.mjs --email <correo> --rol RESIDENTE|ADMIN|GUARDIA --nombre "<nombre>" [--persona <personaId>]` crea la cuenta en el realm (si no existe), le da el rol y, con `--persona`, la enlaza en Gestión con la mutation `enlazarCuenta` (solo `ADMIN`; usa `GATEWAY_PORT`). Es idempotente. El `personaId` sale de la base de Gestión o de `miPerfil`. Cada usuario ve sus unidades con la query `miPerfil` de Gestión. Solo desarrollo: usa el usuario `admin@condohub.test` y el admin maestro de Keycloak.
+
 ## Puertos ocupados en tu máquina
 
 Si un puerto del compose ya lo usa otro programa (en la máquina de Luis: 5432 por un PostgreSQL de Windows y 8080 por `AgentService`), no lo apagues: cambia el puerto del host con `POSTGRES_PORT` y `GATEWAY_PORT` (variables de entorno o `infra/.env`). Dentro de Docker los puertos no cambian.

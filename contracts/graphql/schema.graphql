@@ -7,10 +7,13 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - salud:             cualquier rol autenticado.
   - estadoDeCuenta:    ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
   - pagosPendientes:   solo ADMIN.
+  - miPerfil:          cualquier rol autenticado (devuelve solo lo del propio token).
+  - enlazarCuenta:     solo ADMIN.
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
   query: Query
+  mutation: Mutation
 }
 
 "Dinero como string decimal con 2 decimales, ej. \"390.00\" (F10). Nunca número."
@@ -25,6 +28,20 @@ type Query {
 
   "Pagos en estado PENDIENTE, a la espera de conciliación (F8). Solo ADMIN."
   pagosPendientes: [Pago!]!
+
+  "Quién soy: $sub y roles del token y, si la cuenta está enlazada a una persona (F1), sus datos y unidades. Un ADMIN o GUARDIA sin persona recibe personaId null y unidades vacías."
+  miPerfil: Perfil!
+}
+
+type Mutation {
+  "Enlaza la cuenta de Keycloak (su sub) con una persona de Gestión (F1). Solo ADMIN. Repetir el mismo enlace no falla; una cuenta ya enlazada a otra persona, o una persona con otra cuenta, da F1."
+  enlazarCuenta(personaId: ID!, keycloakSub: String!): PersonaCuenta!
+}
+
+type PersonaCuenta {
+  personaId: ID!
+  nombre: String!
+  keycloakSub: String!
 }
 
 type Salud {
@@ -57,4 +74,24 @@ type Pago {
   "Fecha del comprobante, ISO-8601 (yyyy-MM-dd)."
   fechaPago: String!
   estado: EstadoPago!
+}
+
+type Perfil {
+  "sub de Keycloak (el del token)."
+  sub: String!
+  "Roles de CondoHub del token (ADMIN, RESIDENTE, GUARDIA)."
+  roles: [String!]!
+  "Id de la persona en Gestión; null si la cuenta no está enlazada. Es el residenteId que usa el servicio IA."
+  personaId: ID
+  nombre: String
+  "Unidades de las que es titular o residente vigente (F1)."
+  unidades: [UnidadDePersona!]!
+}
+
+type UnidadDePersona {
+  unidadId: ID!
+  codigo: String!
+  bloque: String!
+  "true si es el propietario titular; false si es residente."
+  titular: Boolean!
 }
