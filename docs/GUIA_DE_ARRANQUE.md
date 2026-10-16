@@ -18,7 +18,9 @@ Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar.
 | Reservas | Laravel 12 + Clean; endpoints protegidos por rol (501); esquema SQL existente migrado y sus pruebas de BD en verde | 31 tests (Pest), PHPStan nivel 8, Pint; probado por el gateway |
 | Shell | React + Vite; login OIDC real, menú por rol, host de remotos | 13 tests, build; flujo PKCE probado |
 
-**Todavía no existe:** frontends `admin`, `residente` y `guardia`, el servidor MCP y el LLM de Agentes, flujos de n8n, y cualquier lógica de negocio más allá de lo de la tabla. Los esqueletos responden `501 NO_IMPLEMENTADO` en lo que falta.
+**Actualización 16/10/2026:** Gestión ya tiene `miPerfil` y `enlazarCuenta`; el shell renueva el token en silencio; `admin`, `residente` y `guardia` tienen esqueleto (React, muestran el perfil). Cómo levantarlo todo y entrar: sección 6.
+
+**Todavía no existe:** el servidor MCP y el LLM de Agentes, los flujos de n8n de cron, las pantallas de negocio de los tres frontends, y cualquier lógica de negocio más allá de lo de la tabla. Los esqueletos responden `501 NO_IMPLEMENTADO` en lo que falta.
 
 ## 2. Clonar el espacio de trabajo y levantar todo
 
@@ -114,7 +116,65 @@ Hecho: pipeline MTCNN → FaceNet, línea base con métricas, registro con fotos
 | Fotos y consentimiento | Cada integrante aporta 30–50 fotos (3 sesiones) y 10–15 desconocidos con permiso. Completar los campos `[entre corchetes]` de `docs/negocio/consentimiento-facial.md` y definir dónde se guardan (privado, nunca en git) | todos |
 | Dónde viven los repos (cerrada) | Las URLs reales están en la sección 2 («Clonar el espacio de trabajo»). La raíz está en la cuenta de Erick y los otros 9 en la de Luis, con los demás integrantes como colaboradores | — |
 
-## 6. Convenciones que ya se aplican
+## 6. Trabajar logueado (checklist para cada integrante)
+
+**1. Infraestructura.** Con Docker Desktop abierto (si `docker ps` dice que no encuentra el motor, espera a que arranque):
+
+```powershell
+docker compose -f infra/docker-compose.yml up -d
+# con 5432 u 8080 ocupados: $env:POSTGRES_PORT='5433'; $env:GATEWAY_PORT='8090'   (antes del comando anterior)
+```
+
+Keycloak tarda ~40 s. Está listo cuando <http://localhost:8180/realms/condohub/.well-known/openid-configuration> responde.
+
+**2. Servicios** (cada uno en su carpeta; solo los que vayas a usar). Si cambiaste `POSTGRES_PORT`, pásalo a Gestión y Reservas:
+
+| Servicio | Comando | Puerto |
+|---|---|---|
+| Gestión | `$env:GESTION_DB_URL='jdbc:postgresql://localhost:5433/gestion'; mvn spring-boot:run "-Dspring-boot.run.profiles=dev"` | 8081 |
+| Reservas | `$env:DB_PORT='5433'; php artisan serve --port=8082` | 8082 |
+| Acceso | `npm run dev` | 3001 |
+| IA | `.venv\Scripts\python -m uvicorn app.main:app --port 8083` | 8083 |
+| Agentes | `.venv\Scripts\python -m uvicorn app.main:app --port 8084` | 8084 |
+
+Gestión con el perfil `dev` carga las 200 unidades de demostración. Comprobación rápida de todo: `$env:GATEWAY_PORT='8090'; node infra/humo.mjs`.
+
+**3. Frontends.** Cada remoto se compila y se sirve con `npm install` (una vez) y `npm run dev`. Si tu gateway no está en el 8080, crea antes en la carpeta del remoto un `.env` con `VITE_GATEWAY_URL=http://localhost:8090` (el `.env` no se sube). Después, el shell:
+
+| Frontend | Carpeta | URL |
+|---|---|---|
+| Shell (entra por aquí) | `frontends/shell` (`npm run dev`) | <http://localhost:5173> |
+| Remoto admin | `frontends/admin` | 4200 |
+| Remoto residente | `frontends/residente` | 5174 |
+| Remoto guardia | `frontends/guardia` | 5175 |
+
+**4. Usuarios** (contraseña `Condohub123!`; solo desarrollo):
+
+| Usuario | Rol | Qué ves |
+|---|---|---|
+| `admin@condohub.test` | `ADMIN` | consola admin; sin unidades propias |
+| `residente@condohub.test` | `RESIDENTE` | portal del residente; titular de la unidad A-101 |
+| `guardia@condohub.test` | `GUARDIA` | app de portería |
+| `vecino.b101@condohub.test` | `RESIDENTE` | titular de B-101 (cuenta de ejemplo creada con el script) |
+
+**5. Crear más cuentas.** Cada persona de Gestión puede tener su cuenta de Keycloak enlazada (F1). El `personaId` sale de `miPerfil` o de la tabla `persona` de Gestión:
+
+```powershell
+node infra/keycloak/crear-cuenta.mjs --email ana@vecinos.condohub.test --rol RESIDENTE --nombre "Ana Pérez" --persona <personaId>
+```
+
+**6. Llamar a un servicio a mano con tu token:**
+
+```powershell
+$t = (Invoke-RestMethod -Method Post http://localhost:8180/realms/condohub/protocol/openid-connect/token -Body @{grant_type='password';client_id='condohub-spa';username='residente@condohub.test';password='Condohub123!'}).access_token
+Invoke-RestMethod -Method Post http://localhost:8090/gestion/graphql -Headers @{Authorization="Bearer $t"} -ContentType 'application/json' -Body '{"query":"{ miPerfil { roles nombre unidades { codigo titular } } }"}'
+```
+
+**Para agregar tu parte al login:** valida el JWT y los roles como en la sección 3; si necesitas saber la unidad o persona del usuario, pide `miPerfil` a Gestión con el mismo token (no leas su base).
+
+**Problemas frecuentes:** `502` en el gateway = el servicio no está levantado (el login sí pasó); `401` = token vencido (dura 15 min; el shell lo renueva solo); pantalla del remoto con error de red = `VITE_GATEWAY_URL` no coincide con tu gateway (recompila el remoto); `directAccessGrantsEnabled` del cliente `condohub-spa` sigue activo porque `humo.mjs` y los `curl` lo usan: desactivarlo antes de la demo del 11/11.
+
+## 7. Convenciones que ya se aplican
 
 Contrato primero; test de dominio con el código de la regla en el nombre (`F1_residente_no_ve_otra_unidad`); errores `application/problem+json` con `code`; dinero como string decimal; el dominio no importa frameworks (lo verifican ArchUnit, ESLint `no-restricted-imports` y un test de dependencias). No reescribir código funcional: se extiende.
 

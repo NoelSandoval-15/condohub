@@ -35,7 +35,7 @@ Servicio `keycloak` (imagen 25.0.6, `start-dev --import-realm`, base `keycloak` 
   | `residente@condohub.test` | `RESIDENTE` | `00000000-0000-0000-0000-00000000a002` |
   | `guardia@condohub.test` | `GUARDIA` | `00000000-0000-0000-0000-00000000a003` |
 
-- **Clientes**: `condohub-spa` (público, Authorization Code + PKCE S256, redirect a los puertos 5173/5174/5175/4200; tiene `directAccessGrantsEnabled` solo para pruebas con curl) y `condohub-servicios` (confidencial, `client_credentials`, secreto `CONDOHUB_SERVICIOS_SECRET`) para n8n, agentes y reportes.
+- **Clientes**: `condohub-spa` (público, Authorization Code + PKCE S256, redirect a los puertos 5173/5174/5175/4200; tiene `directAccessGrantsEnabled` solo para pruebas con curl) y `condohub-servicios` (confidencial, `client_credentials`, secreto `CONDOHUB_SERVICIOS_SECRET`) para n8n, agentes y reportes. Su cuenta de servicio tiene el rol `ADMIN` para poder leer `morosos` en Gestión (decisión del 16/10/2026: no se agregan roles nuevos; G2 sigue exigiendo confirmación humana para todo lo que cree cargos). Si ya tenías el realm importado, el cambio no se aplica solo: asigna el rol `ADMIN` a `service-account-condohub-servicios` en la consola de Keycloak y activa «Full scope allowed» del cliente.
 - Clave de firma: RSA fija de desarrollo (ver "Gateway"); los tokens se validan con ella en el gateway y en los servicios (vía JWKS del realm).
 - Access token: 15 min. Sesión inactiva: 30 min.
 
@@ -114,7 +114,7 @@ Imagen `n8nio/n8n:1.64.0`, editor en <http://localhost:5678>, estado en la base 
 
 Exporta cada flujo a `n8n/flows/<nombre>.json` después de editarlo en la UI; sin credenciales dentro del JSON.
 
-**Estado**: implementado y probado el flujo **«Eventos de CondoHub»** (`n8n/flows/eventos-condohub.json`), que cubre las filas 2, 3 y 5 de la tabla (comprobante/recibo, alerta de cámara y reserva). Es un solo flujo porque los consumidores de una misma cola compiten: uno por evento, enrutado por tipo. Los flujos de cron (recordatorio diario, informe mensual) esperan la query `morosos` de Gestión y el cliente `condohub-servicios`.
+**Estado**: implementado y probado el flujo **«Eventos de CondoHub»** (`n8n/flows/eventos-condohub.json`), que cubre las filas 2, 3 y 5 de la tabla (comprobante/recibo, alerta de cámara y reserva). Es un solo flujo porque los consumidores de una misma cola compiten: uno por evento, enrutado por tipo. Los flujos de cron (recordatorio diario, informe mensual) ya pueden construirse: Gestión expone `morosos` (con el correo del titular) y el token de `condohub-servicios` trae el rol `ADMIN` (16/10/2026). Falta crearlos en n8n.
 
 - **Correo**: Mailpit (`mailpit`, SMTP 1025, bandeja <http://localhost:8025>) hace de proveedor SMTP en desarrollo. Destinos: `GUARDIA_EMAIL` y `ADMIN_EMAIL`; el residente sale de `CONTACTOS_UNIDADES` (`{"<unidadId>":"correo"}`) y, sin entrada, el aviso va al ADMIN. `TODO(regla)`: sustituirlo por los contactos de Gestión cuando los exponga.
 - **Idempotencia (S5)**: se procesa un evento a la vez (`parallelMessages: 1`) y se guarda el `eventId` solo tras enviar el correo; un repetido no genera otro aviso.

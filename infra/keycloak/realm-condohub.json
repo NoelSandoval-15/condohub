@@ -73,10 +73,16 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "fullScopeAllowed": false
+      "fullScopeAllowed": true
     }
   ],
   "users": [
+    {
+      "username": "service-account-condohub-servicios",
+      "enabled": true,
+      "serviceAccountClientId": "condohub-servicios",
+      "realmRoles": ["ADMIN"]
+    },
     {
       "id": "00000000-0000-0000-0000-00000000a001",
       "username": "admin@condohub.test",

@@ -9,6 +9,7 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - pagosPendientes:   solo ADMIN.
   - miPerfil:          cualquier rol autenticado (devuelve solo lo del propio token).
   - enlazarCuenta:     solo ADMIN.
+  - morosos:           solo ADMIN (incluida la cuenta de servicio de n8n y Agentes).
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
@@ -31,6 +32,9 @@ type Query {
 
   "Quién soy: $sub y roles del token y, si la cuenta está enlazada a una persona (F1), sus datos y unidades. Un ADMIN o GUARDIA sin persona recibe personaId null y unidades vacías."
   miPerfil: Perfil!
+
+  "Unidades morosas (F4: cargo vencido e impago), de mayor a menor deuda vencida, con el contacto del propietario titular. Solo ADMIN."
+  morosos: [Moroso!]!
 }
 
 type Mutation {
@@ -94,4 +98,17 @@ type UnidadDePersona {
   bloque: String!
   "true si es el propietario titular; false si es residente."
   titular: Boolean!
+}
+
+type Moroso {
+  unidadId: ID!
+  codigo: String!
+  bloque: String!
+  deudaVencida: Decimal!
+  "Expensas vencidas e impagas (R4 bloquea reservas con 2 o más)."
+  expensasVencidas: Int!
+  "Datos del propietario titular, para enviar el recordatorio (G1)."
+  propietarioNombre: String!
+  propietarioEmail: String
+  propietarioTelefono: String
 }
