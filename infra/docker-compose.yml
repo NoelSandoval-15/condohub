@@ -139,6 +139,9 @@ services:
       GUARDIA_EMAIL: ${GUARDIA_EMAIL:-guardia@condohub.test}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@condohub.test}
       CONTACTOS_UNIDADES: ${CONTACTOS_UNIDADES:-}
+      # Flujos que llaman a Gestión: token del cliente de servicios (Keycloak) y moneda del condominio (F10)
+      CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
+      MONEDA: ${MONEDA:-BOB}
     ports: ["5678:5678"]
     volumes:
       - n8n_data:/home/node/.n8n

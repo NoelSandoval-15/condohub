@@ -1,0 +1,197 @@
+{
+  "id": "recordatorioMorosos01",
+  "name": "Recordatorio de morosos",
+  "active": false,
+  "nodes": [
+    {
+      "id": "m01-cada-dia",
+      "name": "Cada día a las 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "m02-a-mano",
+      "name": "Ejecutar a mano",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "m03-token",
+      "name": "Pedir token de servicio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://keycloak:8080/realms/condohub/protocol/openid-connect/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "condohub-servicios"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $env.CONDOHUB_SERVICIOS_SECRET }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "m04-morosos",
+      "name": "Consultar morosos en Gestión",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://gateway:8000/gestion/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"query\":\"{ morosos { unidadId codigo bloque deudaVencida expensasVencidas propietarioNombre propietarioEmail } }\"}"
+      }
+    },
+    {
+      "id": "m05-armar",
+      "name": "Armar recordatorios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Un recordatorio por unidad morosa. El correo sale de Gestión (propietario titular); sin correo, va al ADMIN.\nconst respuesta = $input.first().json;\nif (respuesta.errors) throw new Error('Gestión respondió con error: ' + JSON.stringify(respuesta.errors[0]));\nconst moneda = $env.MONEDA || 'BOB';\nreturn (respuesta.data.morosos || []).map((m) => {\n  const tieneCorreo = Boolean(m.propietarioEmail);\n  const cuotas = m.expensasVencidas === 1 ? '1 expensa vencida e impaga' : m.expensasVencidas + ' expensas vencidas e impagas';\n  const nota = tieneCorreo ? '' : '\\n\\n(Aviso para el administrador: el titular de esta unidad no tiene correo registrado.)';\n  return { json: {\n    para: m.propietarioEmail || $env.ADMIN_EMAIL,\n    asunto: 'Recordatorio de pago · unidad ' + m.codigo,\n    texto: 'Estimado/a ' + m.propietarioNombre + ':\\n\\nSu unidad ' + m.codigo + ' (bloque ' + m.bloque + ') tiene ' + cuotas +\n      ' por un total de ' + m.deudaVencida + ' ' + moneda + '.\\n\\nLe pedimos regularizar el pago a la brevedad. ' +\n      'Si ya lo realizó, puede ignorar este mensaje.\\n\\nAdministración de CondoHub' + nota,\n  } };\n});"
+      }
+    },
+    {
+      "id": "m06-correo",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "condohub@condohub.test",
+        "toEmail": "={{ $json.para }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "condohub-smtp",
+          "name": "CondoHub SMTP"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Cada día a las 09:00": {
+      "main": [
+        [
+          {
+            "node": "Pedir token de servicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar a mano": {
+      "main": [
+        [
+          {
+            "node": "Pedir token de servicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir token de servicio": {
+      "main": [
+        [
+          {
+            "node": "Consultar morosos en Gestión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar morosos en Gestión": {
+      "main": [
+        [
+          {
+            "node": "Armar recordatorios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar recordatorios": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  }
+}
