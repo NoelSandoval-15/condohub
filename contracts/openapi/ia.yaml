@@ -174,6 +174,31 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /modelos/lectura-placas/actual:
+    get:
+      tags: [Placas]
+      operationId: modeloLecturaPlacasActual
+      summary: Reconocedor de texto de placas, para leerlas en el dispositivo del guardia
+      description: |
+        Devuelve la URL firmada del ONNX que lee el texto de una placa ya recortada (A4, O6) y la de su ficha
+        (caracteres del modelo y preproceso). La PWA lo descarga junto al detector (`/modelos/placas/actual`), verifica el hash y
+        lo ejecuta sin red. La placa se acepta por votación entre varias lecturas de la misma imagen; lo que no cumple
+        el formato de A4 no se acepta. Roles: `GUARDIA`, `ADMIN`.
+      responses:
+        '200':
+          description: Reconocedor activo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModeloLecturaPlacas' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '503':
+          description: El almacén de modelos no está disponible
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problema' }
+
   /reportes/voz:
     post:
       tags: [Reportes]
@@ -310,6 +335,18 @@ components:
         url: { type: string, format: uri, description: 'URL firmada de MinIO' }
         sha256: { type: string, description: 'Hash del archivo, para verificar la descarga' }
         expiraEn: { type: string, format: date-time }
+
+    ModeloLecturaPlacas:
+      type: object
+      required: [modelo, version, formato, url, sha256, fichaUrl, expiraEn]
+      properties:
+        modelo: { type: string, example: easyocr-reconocedor-placas }
+        version: { type: string }
+        formato: { type: string, enum: [onnx-fp32, onnx-int8] }
+        url: { type: string, format: uri, description: 'URL firmada del ONNX del reconocedor' }
+        sha256: { type: string, description: 'Hash del ONNX, para verificar la descarga' }
+        fichaUrl: { type: string, format: uri, description: 'URL firmada de la ficha JSON: caracteres de salida del modelo, preproceso y decodificación' }
+        expiraEn: { type: string, format: date-time, description: 'Vence a la vez que las dos URLs' }
 
     Reporte:
       type: object
