@@ -74,7 +74,7 @@ Orquestada desde Reservas, comunicación por RabbitMQ:
 - **A1.** Un residente registra una visita → se emite un pase QR con ventana de validez (por defecto el día indicado, 07:00–23:59) y **un solo uso** de ingreso.
 - **A2.** El guardia valida el QR. Pase vencido, usado o revocado → rechazo con motivo. Sin pase, el guardia registra la visita manualmente indicando la unidad que autoriza.
 - **A3.** Los registros de acceso son **append-only**: nunca se editan ni se borran. Un error se corrige con un registro nuevo que referencia al anterior.
-- **A4.** Vehículos: placa de residente reconocida con confianza ≥ **0.85** → ingreso permitido. Por debajo o sin coincidencia → el guardia decide y registra manualmente.
+- **A4.** Vehículos: placa de residente reconocida con confianza ≥ **0.85** → ingreso permitido. Por debajo o sin coincidencia → el guardia decide y registra manualmente. Formato de placa (Bolivia, desde 1999): **4 dígitos seguidos de 3 letras** (ej. `1234ABC`), en mayúsculas y sin separadores; la letra del departamento impresa arriba a la derecha no forma parte del texto. Una lectura que no cumple el formato no se acepta como placa válida.
 - **A5.** El reconocimiento facial **asiste** al guardia (muestra quién es) pero **nunca abre por sí solo** ni bloquea a nadie.
 
 ### 5. Offline e idempotencia
@@ -89,7 +89,7 @@ Orquestada desde Reservas, comunicación por RabbitMQ:
 ### 6. IA y datos personales
 
 - **I1.** Solo se reconocen rostros de residentes que dieron **consentimiento** explícito (fecha y versión del texto guardadas). Al retirarlo se borran sus fotos y embeddings en menos de 24 h.
-- **I2.** Reconocido = similitud coseno ≥ umbral calibrado en validación (inicial **0.70**, documentar el valor final en `ml/README.md`). Por debajo = desconocido.
+- **I2.** Tres zonas según la similitud coseno con el perfil más parecido, con umbrales calibrados en validación con desconocidos reales (iniciales **alto 0.70** y **bajo 0.50**; documentar los valores finales en `ml/README.md`): ≥ alto = `RECONOCIDO`; entre bajo y alto = `DUDOSO` (se muestra el candidato y **decide el guardia**); < bajo = `DESCONOCIDO`. Solo los `DESCONOCIDO` se guardan para I3/I4; un `DUDOSO` solo queda en la predicción (I5), porque puede ser un residente.
 - **I3.** Los embeddings de desconocidos se guardan **30 días** y luego se borran.
 - **I4.** DBSCAN corre cada noche sobre los desconocidos de los últimos 30 días (métrica coseno). Un clúster con **≥ 3 apariciones en días distintos** genera una alerta al guardia ("visitante recurrente no registrado").
 - **I5.** Toda predicción guarda: modelo, versión, confianza, fecha. Nada de IA se usa sin su confianza.

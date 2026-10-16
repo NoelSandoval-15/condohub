@@ -45,8 +45,9 @@ paths:
       summary: Identificar el rostro de una imagen
       description: |
         Detecta (MTCNN), alinea y calcula el embedding; compara contra los perfiles con consentimiento vigente (I1).
-        `RECONOCIDO` si la similitud coseno es ≥ umbral calibrado (I2; inicial 0.70). Si no, `DESCONOCIDO`, y el embedding
-        se guarda 30 días (I3) para el agrupamiento nocturno (I4). Toda predicción queda registrada (I5).
+        Tres zonas por similitud coseno (I2; iniciales 0.70 y 0.50): `RECONOCIDO` (≥ alto), `DUDOSO` (entre bajo y alto: se
+        devuelve el candidato y decide el guardia) y `DESCONOCIDO` (< bajo), cuyo embedding se guarda 30 días (I3) para el
+        agrupamiento nocturno (I4). Toda predicción queda registrada (I5).
         El resultado **asiste** al guardia; nunca abre ni bloquea por sí solo (A5).
         Roles: `GUARDIA`, `ADMIN`.
       requestBody:
@@ -83,9 +84,10 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [residenteId, unidadId, consentimientoFecha, consentimientoVersion, fotos]
+              required: [residenteId, residenteSub, unidadId, consentimientoFecha, consentimientoVersion, fotos]
               properties:
-                residenteId: { type: string, format: uuid }
+                residenteId: { type: string, format: uuid, description: 'Id de la persona en Gestión' }
+                residenteSub: { type: string, description: 'sub de Keycloak del residente; con él se comprueba que un RESIDENTE solo retire SU consentimiento (I1)' }
                 unidadId: { type: string, format: uuid }
                 consentimientoFecha: { type: string, format: date-time, description: 'Momento en que el residente aceptó (UTC)' }
                 consentimientoVersion: { type: string, description: 'Versión del texto de consentimiento aceptado' }
@@ -111,7 +113,7 @@ paths:
       summary: Retirar el consentimiento y borrar el perfil facial
       description: |
         Borra fotos y embeddings del residente en menos de 24 h (I1). Es idempotente: repetirlo devuelve la misma respuesta.
-        Roles: `ADMIN`, o el `RESIDENTE` dueño del perfil.
+        Roles: `ADMIN`, o el `RESIDENTE` dueño del perfil (su `sub` del token debe ser el `residenteSub` del perfil; si no, 403).
       parameters:
         - name: residenteId
           in: path
@@ -256,13 +258,13 @@ components:
       properties:
         resultado:
           type: string
-          enum: [RECONOCIDO, DESCONOCIDO, SIN_ROSTRO]
-          description: SIN_ROSTRO si no se detectó ningún rostro en la imagen
+          enum: [RECONOCIDO, DUDOSO, DESCONOCIDO, SIN_ROSTRO]
+          description: DUDOSO = parecido a un residente pero bajo el umbral alto, decide el guardia (I2); SIN_ROSTRO si no se detectó ningún rostro
         residenteId:
           type: string
           format: uuid
           nullable: true
-          description: Solo cuando `resultado = RECONOCIDO`
+          description: Residente reconocido o candidato; solo cuando `resultado` es `RECONOCIDO` o `DUDOSO`
         confianza: { $ref: '#/components/schemas/Confianza' }
         modelo: { type: string, example: facenet-triplet }
         version: { type: string, example: '1.0.0' }
