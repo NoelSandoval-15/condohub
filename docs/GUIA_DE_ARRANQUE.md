@@ -29,7 +29,7 @@ Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar.
 Se clona primero la raíz y luego cada repo dentro de su carpeta (git crea `services/` y `frontends/` solo). Siempre se abre la carpeta `condohub` completa.
 
 ```bash
-git clone https://github.com/NoelSandoval-15/EXAMEN-2---SW-II.git condohub
+git clone https://github.com/NoelSandoval-15/condohub.git condohub
 cd condohub
 
 git clone https://github.com/luisrepo25/condohub-gestion.git    services/gestion
