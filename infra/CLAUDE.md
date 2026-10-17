@@ -132,6 +132,10 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.apps.yml up -
 
 Verificado: los 5 servicios responden por el gateway (`node infra/humo.mjs`), los frontends se sirven con nginx, Reservas migra al arrancar, y un reporte por voz completo (Whisper → LLM → Gestión → PDF en S3) se descarga desde fuera de Docker. Notas: `RESERVAS_APP_KEY`, `GEMINI_API_KEY`/`GROQ_API_KEY` (+ `LLM_PROVEEDOR`) y `S3_ENDPOINT_PUBLICO` por entorno; los frontends llevan las URL públicas compiladas (build args del compose); `ia-agrupamiento` corre el DBSCAN a las 02:00 (La Paz); Gestión arranca con `SPRING_PROFILES_ACTIVE=dev` (datos de demostración) salvo que definas `GESTION_PERFIL`. Los secretos por defecto del compose son solo de desarrollo.
 
+## CI/CD (GitHub Actions)
+
+Cada repo tiene `.github/workflows/ci.yml`: pruebas (lo mismo que se corre a mano; ver el `CLAUDE.md` del repo) en cada PR y push a `main`, y luego la imagen Docker, que se **publica en GHCR** (`ghcr.io/<cuenta>/<repo>:latest` y `:<sha>`) solo en push a `main`. La raíz tiene `contratos.yml`: valida el esquema GraphQL, los 14 esquemas de eventos, el lint de OpenAPI, el compose y los JSON de n8n, Keycloak y RabbitMQ. Los workflows se validaron con `actionlint`. El CI de IA instala sin PyTorch (los tests usan dobles; el modelo real se valida en Colab). Fuera del espacio de trabajo completo, los tests de contrato de cada servicio se omiten solos.
+
 ## Comandos
 
 ```bash

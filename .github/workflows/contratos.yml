@@ -1,0 +1,52 @@
+# Valida lo que comparten todos los repos: contratos (GraphQL, OpenAPI, eventos) y el compose de infraestructura.
+name: Contratos e infraestructura
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: contratos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contratos:
+    name: Contratos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install graphql-core jsonschema pyyaml
+      - name: Esquema GraphQL de Gestión
+        run: python -c "from graphql import build_schema; build_schema(open('contracts/graphql/schema.graphql', encoding='utf-8').read())"
+      - name: Esquemas JSON de los eventos
+        run: |
+          python - <<'PY'
+          import glob, json
+          from jsonschema.validators import validator_for
+          archivos = sorted(glob.glob('contracts/events/*.schema.json'))
+          for f in archivos:
+              esquema = json.load(open(f, encoding='utf-8'))
+              validator_for(esquema).check_schema(esquema)
+          print(f'{len(archivos)} esquemas de eventos válidos')
+          PY
+      - name: Contratos OpenAPI
+        run: npx --yes @redocly/cli@1 lint contracts/openapi/*.yaml
+
+  infraestructura:
+    name: Infraestructura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose de infraestructura
+        run: docker compose -f infra/docker-compose.yml config --quiet
+      - name: Flujos de n8n (JSON válido)
+        run: for f in infra/n8n/flows/*.json; do node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"; done
+      - name: Realm de Keycloak y topología de RabbitMQ (JSON válido)
+        run: for f in infra/keycloak/realm-condohub.json infra/rabbitmq/definitions.json; do node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"; done
