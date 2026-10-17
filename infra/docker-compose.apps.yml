@@ -1,0 +1,147 @@
+# CondoHub · aplicaciones en contenedores (sobre la infraestructura de docker-compose.yml).
+# Uso (desde la raíz). Antes apaga los servicios que corras en el host (mismos puertos):
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.apps.yml up -d --build
+# Variables útiles (infra/.env o entorno): GATEWAY_PORT, POSTGRES_PORT, RESERVAS_APP_KEY, GESTION_PERFIL,
+# LLM_PROVEEDOR, GEMINI_API_KEY, GROQ_API_KEY. Los valores por defecto son SOLO de desarrollo.
+# Los frontends se compilan con las URL públicas (build args): para otro dominio, cámbialas aquí y reconstruye.
+
+x-keycloak: &keycloak
+  KEYCLOAK_ISSUER: http://localhost:8180/realms/condohub           # el `iss` de los tokens es siempre el hostname público
+  KEYCLOAK_JWKS: http://keycloak:8080/realms/condohub/protocol/openid-connect/certs   # las claves, por la red interna
+
+services:
+  gestion:
+    build: ../services/gestion
+    image: condohub-gestion:dev
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    environment:
+      <<: *keycloak
+      GESTION_DB_URL: jdbc:postgresql://postgres:5432/gestion
+      GESTION_DB_USER: gestion
+      GESTION_DB_PASSWORD: ${GESTION_DB_PASSWORD:-gestion_dev}
+      SPRING_PROFILES_ACTIVE: ${GESTION_PERFIL:-dev}     # dev = datos de demostración; en producción, otro perfil
+    ports: ["8081:8081"]
+
+  reservas:
+    build: ../services/reservas
+    image: condohub-reservas:dev
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    environment:
+      <<: *keycloak
+      APP_KEY: ${RESERVAS_APP_KEY:-base64:wRQmMLxzzIK/RQQyzDTLf6LRssufzzorJIqlgyv7euE=}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: reservas
+      DB_USERNAME: reservas
+      DB_PASSWORD: ${RESERVAS_DB_PASSWORD:-reservas_dev}
+    ports: ["8082:8082"]
+
+  acceso:
+    build: ../services/acceso
+    image: condohub-acceso:dev
+    depends_on:
+      keycloak: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    environment:
+      <<: *keycloak
+    ports: ["3001:3001"]
+
+  ia:
+    build: ../services/ia
+    image: condohub-ia:dev
+    depends_on:
+      mongo: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    environment: &ia-entorno
+      <<: *keycloak
+      PERSISTENCIA: mongo
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: ia
+      ALMACEN_FOTOS: s3
+      ALMACEN_REPORTES: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT_PUBLICO: ${S3_ENDPOINT_PUBLICO:-http://localhost:9000}   # el host que verá el navegador en las URLs firmadas
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-condohub}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-condohub123}
+      RABBITMQ_URL: amqp://condohub:condohub@rabbitmq:5672/%2F
+      MODELO_FACIAL: facenet
+      GESTION_GRAPHQL_URL: http://gestion:8081/graphql
+      LLM_PROVEEDOR: ${LLM_PROVEEDOR:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+    volumes:
+      - ia_modelos:/models        # caché del modelo de Whisper (se descarga la primera vez)
+    ports: ["8083:8083"]
+
+  ia-agrupamiento:               # I4: DBSCAN nocturno (02:00 hora de La Paz) con la misma imagen que ia
+    image: condohub-ia:dev
+    depends_on: [ia]
+    restart: unless-stopped
+    environment:
+      <<: *ia-entorno
+      TZ: America/La_Paz
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          ahora=$$(date +%s); proxima=$$(date -d "02:00" +%s)
+          [ "$$proxima" -le "$$ahora" ] && proxima=$$(date -d "tomorrow 02:00" +%s)
+          sleep $$((proxima - ahora))
+          python -m app.jobs.agrupar_desconocidos || echo "el job de I4 falló; se reintenta mañana"
+        done
+
+  agentes:
+    build: ../services/agentes
+    image: condohub-agentes:dev
+    depends_on:
+      keycloak: { condition: service_healthy }
+    environment:
+      <<: *keycloak
+    ports: ["8084:8084"]
+
+  shell:
+    build:
+      context: ../frontends/shell
+      args:
+        VITE_KEYCLOAK_ISSUER: http://localhost:8180/realms/condohub
+        VITE_REMOTE_ADMIN: http://localhost:4200/remoteEntry.js
+        VITE_REMOTE_RESIDENTE: http://localhost:5174/assets/remoteEntry.js
+        VITE_REMOTE_GUARDIA: http://localhost:5175/assets/remoteEntry.js
+    image: condohub-shell:dev
+    ports: ["5173:80"]
+
+  admin:
+    build: { context: ../frontends/admin, args: { VITE_GATEWAY_URL: "http://localhost:${GATEWAY_PORT:-8080}" } }
+    image: condohub-admin:dev
+    ports: ["4200:80"]
+
+  residente:
+    build: { context: ../frontends/residente, args: { VITE_GATEWAY_URL: "http://localhost:${GATEWAY_PORT:-8080}" } }
+    image: condohub-residente:dev
+    ports: ["5174:80"]
+
+  guardia:
+    build: { context: ../frontends/guardia, args: { VITE_GATEWAY_URL: "http://localhost:${GATEWAY_PORT:-8080}" } }
+    image: condohub-guardia:dev
+    ports: ["5175:80"]
+
+  gateway:                       # mismas rutas, pero hacia los servicios del compose por nombre
+    volumes:
+      - ./gateway/kong.apps.yml:/kong/kong.yml:ro
+    depends_on:
+      - gestion
+      - reservas
+      - acceso
+      - ia
+      - agentes
+
+volumes:
+  ia_modelos:

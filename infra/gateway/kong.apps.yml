@@ -1,0 +1,66 @@
+# API Gateway de CondoHub (Kong en modo DB-less).
+# Valida el JWT de Keycloak y reenvía el header Authorization a cada servicio, que lo vuelve a validar.
+# La autorización por rol la hace cada servicio, no el gateway.
+#
+# La clave pública de abajo es la clave RSA FIJA DE DESARROLLO que infra/keycloak/realm-condohub.json
+# instala en el realm (componente rsa-desarrollo-fija). Solo desarrollo; en otros entornos se reemplaza.
+# Variante para docker-compose.apps.yml: los upstreams son los servicios del compose (por nombre).
+# Es una copia de kong.yml; si cambias rutas, plugins o la clave en uno, cambia el otro.
+_format_version: "3.0"
+_transform: true
+
+consumers:
+  - username: keycloak-condohub
+    jwt_secrets:
+      - key: http://localhost:8180/realms/condohub     # claim iss de los tokens
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwWLQLDi+7Ifd1xCY6jld
+          R5ukbm8CbRi3tm71BJmj/yFHSTg12LJAgS0vKWFbL5UOvT9X8DpNmr5Ztpu1PRNr
+          7sJLQt42V4jbbwiT47pQtsLjgb6hwZjkvXDQM/SjGQsVeT6h3Qx+G2nLUJK6Ki0B
+          byCtZm6CXhGp7KwSzzEaTzS/UfokYdUtu/hQDnA7r6oXWpuT+mR+qC8x92GMRzQL
+          HbdBPyfclIDdWcAWfL3NPJt15ncEYFVVrSX+9LVI93cJNOAKfB3sCgWTCXKNLI5G
+          etz6F4UZd0brzGUmEYzCoBM27fqDIWuqhlFUMlh6naJneDRuwToJqKMcQ6/5Vcxz
+          CwIDAQAB
+          -----END PUBLIC KEY-----
+
+plugins:
+  - name: jwt
+    config:
+      key_claim_name: iss
+      claims_to_verify: [exp]
+      header_names: [authorization]
+  - name: cors
+    config:
+      origins:
+        - http://localhost:5173
+        - http://localhost:5174
+        - http://localhost:5175
+        - http://localhost:4200
+      methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      headers: [Authorization, Content-Type, Idempotency-Key, Accept]
+      credentials: true
+      max_age: 3600
+
+services:
+  - name: gestion
+    url: http://gestion:8081
+    routes:
+      - { name: gestion, paths: [/gestion], strip_path: true }
+  - name: reservas
+    url: http://reservas:8082
+    routes:
+      - { name: reservas, paths: [/reservas], strip_path: true }
+  - name: acceso
+    url: http://acceso:3001
+    routes:
+      - { name: acceso, paths: [/acceso], strip_path: true }
+  - name: ia
+    url: http://ia:8083
+    routes:
+      - { name: ia, paths: [/ia], strip_path: true }
+  - name: agentes
+    url: http://agentes:8084
+    routes:
+      - { name: agentes, paths: [/agentes], strip_path: true }

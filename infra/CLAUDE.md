@@ -121,6 +121,17 @@ Exporta cada flujo a `n8n/flows/<nombre>.json` después de editarlo en la UI; si
 - **Fallos**: si el correo no sale, el evento original va a `condohub.dlq` con el motivo (puede tardar ~2 min si el SMTP está caído); reenviar el evento a mano lo entrega.
 - **Cargar y probar**: `node n8n/importar.mjs` (credenciales desde el entorno, importa y activa los flujos), `node n8n/probar.mjs` (5 correos + repetido) y `node n8n/probar-fallo.mjs` (SMTP caído). Si usas `CONTACTOS_UNIDADES` en el compose, pásalo también a `probar.mjs`.
 
+## Aplicaciones en contenedores (17/10/2026)
+
+Cada servicio y frontend tiene su `Dockerfile` en su repo. `docker-compose.apps.yml` los levanta sobre la infraestructura, con el gateway apuntando por nombre (`gateway/kong.apps.yml`, copia de `kong.yml`: si cambias uno, cambia el otro):
+
+```bash
+# apaga antes lo que corras en el host (mismos puertos)
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.apps.yml up -d --build
+```
+
+Verificado: los 5 servicios responden por el gateway (`node infra/humo.mjs`), los frontends se sirven con nginx, Reservas migra al arrancar, y un reporte por voz completo (Whisper → LLM → Gestión → PDF en S3) se descarga desde fuera de Docker. Notas: `RESERVAS_APP_KEY`, `GEMINI_API_KEY`/`GROQ_API_KEY` (+ `LLM_PROVEEDOR`) y `S3_ENDPOINT_PUBLICO` por entorno; los frontends llevan las URL públicas compiladas (build args del compose); `ia-agrupamiento` corre el DBSCAN a las 02:00 (La Paz); Gestión arranca con `SPRING_PROFILES_ACTIVE=dev` (datos de demostración) salvo que definas `GESTION_PERFIL`. Los secretos por defecto del compose son solo de desarrollo.
+
 ## Comandos
 
 ```bash
