@@ -11,12 +11,14 @@ Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar.
 | RabbitMQ | Exchange `condohub.events`, colas de la saga y n8n, DLQ (nombres en `infra/CLAUDE.md`) | Ruteo de un evento de prueba |
 | n8n | En el compose, con su base en Postgres | `healthz` |
 | Contratos | `events/` (sobre + 13 eventos), `openapi/` (`ia`, `agentes`, `reservas`, `acceso`), `graphql/schema.graphql` (v1 mínima) | Esquemas compilados y probados con mensajes válidos e inválidos; lint de OpenAPI |
-| Gestión | Spring Boot + Hexagonal; `salud`, `estadoDeCuenta` (F1), `pagosPendientes` | 22 tests, ArchUnit, Testcontainers; probado por el gateway |
-| IA | FastAPI + Clean; endpoints de `ia.yaml` protegidos por rol (501 hasta tener lógica). ML en Colab (`services/ia/ml/README.md`): línea base facial, registro con fotos propias y ajuste fino, ya ejecutados | 88 tests (servicio + ML), ruff, mypy; probado por el gateway |
-| Acceso | Next.js + Clean; endpoints protegidos por rol (501) | 35 tests, lint, build; probado por el gateway |
-| Agentes | FastAPI + Clean; misiones y confirmaciones solo para ADMIN (501 hasta tener lógica) | 26 tests, ruff, mypy; probado por el gateway |
-| Reservas | Laravel 12 + Clean; endpoints protegidos por rol (501); esquema SQL existente migrado y sus pruebas de BD en verde | 31 tests (Pest), PHPStan nivel 8, Pint; probado por el gateway |
-| Shell | React + Vite; login OIDC real, menú por rol, host de remotos | 13 tests, build; flujo PKCE probado |
+| Gestión | Spring Boot + Hexagonal; `salud`, `estadoDeCuenta` (F1), `pagosPendientes`, `miPerfil`, `enlazarCuenta` (F1), `morosos` (F4, G1) | 24 unitarios + 16 de integración, ArchUnit, Testcontainers; probado por el gateway |
+| IA | FastAPI + Clean. Hecho: rostros (I1–I3, I5) con FaceNet, lectura de placas en el dispositivo (modelos publicados en S3), DBSCAN nocturno con aviso, reportes por voz (G4: Whisper + LLM + GraphQL de solo lectura + Excel/PDF). Falta: `POST /placas/leer` (501). ML en `services/ia/ml/README.md` | 433 tests (servicio + ML), ruff, mypy; reporte por voz probado de punta a punta |
+| Acceso | Next.js + Clean; endpoints protegidos por rol (501): **su lógica (A1–A3, DynamoDB, sync offline) sigue sin implementar** | 35 tests, lint, build; probado por el gateway |
+| Agentes | FastAPI + Clean; misiones y confirmaciones solo para ADMIN (501): **falta el servidor MCP, el LLM y MongoDB** | 26 tests, ruff, mypy; probado por el gateway |
+| Reservas | Laravel 12 + Clean; endpoints protegidos por rol (501): **faltan R1–R8 y la saga**; esquema SQL migrado y sus pruebas de BD en verde | 31 tests (Pest), PHPStan nivel 8, Pint; probado por el gateway |
+| Shell | React + Vite; login OIDC real con renovación silenciosa del token, menú por rol, host de remotos, estilos base | 14 tests, lint, build; login probado en el navegador |
+| Admin, residente, guardia | Esqueletos React (módulo ES con `mount`/`unmount`, consultan `miPerfil`); **faltan todas las pantallas de negocio** | 3 tests cada uno, build |
+| Contenedores y CI | `Dockerfile` en cada repo, `infra/docker-compose.apps.yml`, GitHub Actions con pruebas e imagen en GHCR | Plataforma completa en contenedores; CI en verde en los 10 repos |
 
 **Actualización 16/10/2026:** Gestión ya tiene `miPerfil` y `enlazarCuenta`; el shell renueva el token en silencio; `admin`, `residente` y `guardia` tienen esqueleto (React, muestran el perfil). Cómo levantarlo todo y entrar: sección 6.
 
@@ -45,7 +47,7 @@ git clone https://github.com/luisrepo25/condohub-guardia.git    frontends/guardi
 Requisitos: Git, Docker Desktop y Node 20+; Java 21 y Maven (Gestión); Python 3.11 (IA y Agentes); PHP 8.2+ con `pdo_pgsql` y Composer (Reservas). Después:
 
 ```bash
-cp .env.example .env
+cp .env.example infra/.env      # opcional: solo para cambiar valores o poner las claves del LLM
 docker compose -f infra/docker-compose.yml up -d postgres keycloak rabbitmq gateway n8n
 ```
 

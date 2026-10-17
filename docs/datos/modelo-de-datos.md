@@ -106,7 +106,7 @@ Patrones de acceso: pases vigentes del día para la PWA (GSI1 `PASES#<fecha>`), 
 | `clusters_desconocidos` | resultado de cada corrida de DBSCAN, apariciones, días distintos, alertado | I4 |
 | `predicciones` | toda inferencia de rostro o placa con confianza, umbral, modelo, versión y latencia | I5 |
 | `modelos` | registro de modelos entrenados con métricas; un solo activo por tarea (índice único parcial) | I5, informe de ML |
-| `reportes` | transcripción, consulta GraphQL (validador: solo `query`), archivo generado | G4 |
+| `reportes` | `reporteId`, transcripción, consulta GraphQL (validador: solo `query`; una consulta rechazada por G4 no se guarda, queda el motivo), archivo generado (clave en S3), estado `PROCESANDO/LISTO/FALLIDO` | G4 |
 
 ## 5. Agentes (MongoDB `agentes`)
 

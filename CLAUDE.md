@@ -113,7 +113,7 @@ Cuando falte información:
 ## Comandos globales
 
 ```bash
-cp .env.example .env                                   # primera vez
+cp .env.example infra/.env                              # primera vez (Compose lee infra/.env)
 docker compose -f infra/docker-compose.yml up -d       # toda la infraestructura
 docker compose -f infra/docker-compose.yml ps          # estado
 docker compose -f infra/docker-compose.yml logs -f <servicio>

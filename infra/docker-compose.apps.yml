@@ -72,12 +72,16 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-condohub123}
       RABBITMQ_URL: amqp://condohub:condohub@rabbitmq:5672/%2F
       MODELO_FACIAL: facenet
+      TORCH_HOME: /models/torch                          # pesos de FaceNet: se descargan una vez y quedan en el volumen
+      MODELO_PLACAS_FICHA: /modelos/modelo_placas.json
+      MODELO_LECTURA_FICHA: /modelos/ficha_reconocedor.json
       GESTION_GRAPHQL_URL: http://gestion:8081/graphql
       LLM_PROVEEDOR: ${LLM_PROVEEDOR:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
     volumes:
-      - ia_modelos:/models        # caché del modelo de Whisper (se descarga la primera vez)
+      - ia_modelos:/models        # caché de Whisper y de FaceNet (se descargan la primera vez)
+      - ../services/ia/modelos:/modelos:ro   # fichas (en git) y .onnx (del Drive del equipo, no van a git)
     ports: ["8083:8083"]
 
   ia-agrupamiento:               # I4: DBSCAN nocturno (02:00 hora de La Paz) con la misma imagen que ia
