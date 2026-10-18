@@ -135,8 +135,10 @@ paths:
       operationId: leerPlaca
       summary: Leer la placa de una imagen de vehículo
       description: |
-        Detección (YOLOv8n) + OCR. Devuelve el texto leído y la confianza; **no** decide el ingreso: el umbral de 0.85 (A4)
-        lo aplica Acceso. Roles: `GUARDIA`, `ADMIN`.
+        Detección (YOLOv8n) + lector global de placas (OCR preentrenado, cualquier formato). Devuelve el texto leído y la
+        confianza; **no** decide el ingreso: el umbral de 0.85 (A4) y la comparación con las placas registradas los aplica
+        Acceso. La confianza del lector no distingue aciertos de errores de un carácter: no usarla sola para permitir.
+        Sin placa detectable → `SIN_PLACA`. Roles: `GUARDIA`, `ADMIN`.
       requestBody:
         required: true
         content:
@@ -155,6 +157,11 @@ paths:
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+        '503':
+          description: Los modelos de lectura de placas no están configurados o no se pueden cargar
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problema' }
 
   /modelos/placas/actual:
     get:
@@ -326,7 +333,7 @@ components:
           nullable: true
           description: Texto leído, en mayúsculas y sin separadores; solo si `resultado = PLACA_LEIDA`
         confianza: { $ref: '#/components/schemas/Confianza' }
-        modelo: { type: string, example: yolov8n-easyocr }
+        modelo: { type: string, example: yolov8n-placas+fast-plate-ocr-global }
         version: { type: string }
         prediccionId: { type: string }
 

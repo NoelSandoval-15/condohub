@@ -75,6 +75,9 @@ services:
       TORCH_HOME: /models/torch                          # pesos de FaceNet: se descargan una vez y quedan en el volumen
       MODELO_PLACAS_FICHA: /modelos/modelo_placas.json
       MODELO_LECTURA_FICHA: /modelos/ficha_reconocedor.json
+      LECTOR_PLACAS: onnx                    # POST /placas/leer: detector + lector global (.onnx en ../services/ia/modelos)
+      LECTOR_PLACAS_DETECTOR: /modelos/yolov8n_placas_int8.onnx
+      LECTOR_PLACAS_MODELO: /modelos/cct_xs_v2_global.onnx
       GESTION_GRAPHQL_URL: http://gestion:8081/graphql
       LLM_PROVEEDOR: ${LLM_PROVEEDOR:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

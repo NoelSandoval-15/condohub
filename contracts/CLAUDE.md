@@ -27,7 +27,7 @@ contracts/
 ## Estado (14/10/2026)
 
 - `events/`: sobre común + 13 eventos de la saga, pagos y alertas (`reservas.*`, `finanzas.*`, `acceso.*`, `ia.*`). Los campos son una primera versión: Erick (dueño de `contracts/events`) y Aldana deben revisarla antes de implementar productores y consumidores.
-- `openapi/ia.yaml` (Luis): rostros con tres zonas (I2, `DUDOSO`), formato de placa (A4), modelos de placas y de lectura, reportes por voz (G4, con 503). Al 16/10/2026 solo `POST /placas/leer` no está implementado.
+- `openapi/ia.yaml` (Luis): rostros con tres zonas (I2, `DUDOSO`), formato de placa (A4), modelos de placas y de lectura, reportes por voz (G4, con 503). `POST /placas/leer` implementado el 18/10/2026 (responde también 503 si los modelos no están configurados).
 - `graphql/schema.graphql`: `salud`, `estadoDeCuenta`, `pagosPendientes`, `miPerfil`, `morosos`, mutation `enlazarCuenta` y scalar `Decimal`; todo implementado en `services/gestion` (16/10/2026). Aldana la amplía (Unidad, Expensa, Cargo, recargos, pagos, mutations).
 - CI: `.github/workflows/contratos.yml` valida el esquema GraphQL, los esquemas de eventos y el lint de OpenAPI en cada cambio.
 - `openapi/reservas.yaml`, `acceso.yaml` y `agentes.yaml` v1 (propuesta de Luis para Erick y Aldana: roles por endpoint y esquemas derivados de las reglas y de las tablas existentes; revisar antes de implementar). Cada servicio tiene un test que compara sus rutas con su contrato.
