@@ -111,6 +111,8 @@ Imagen `n8nio/n8n:1.64.0`, editor en <http://localhost:5678>, estado en la base 
 | Alerta de cámara | evento `VisitanteRecurrenteDetectado` | notifica al guardia |
 | Informe mensual | día 1 | resumen a propietarios |
 | Notificación de reserva | `ReservaConfirmada` / `ReservaFallida` | avisa al residente |
+| Alertas del agente de monitoreo | webhook `POST /webhook/agente-alertas` (lo llama el servicio Agentes, G5) | correo al `ADMIN_EMAIL` con las anomalías |
+| Recordatorio pedido por el agente | webhook `POST /webhook/agente-recordatorio` (tras la aprobación del ADMIN, G2) | busca al titular en Gestión y le envía el mensaje; sin correo, al ADMIN |
 
 Exporta cada flujo a `n8n/flows/<nombre>.json` después de editarlo en la UI; sin credenciales dentro del JSON.
 

@@ -60,13 +60,18 @@ paths:
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+        '503':
+          description: El LLM no está configurado (falta `GROQ_API_KEY`); no se crea la misión
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problema' }
 
   /misiones/{id}:
     get:
       tags: [Misiones]
       operationId: obtenerMision
-      summary: Estado de una misión y sus confirmaciones pendientes
-      description: Solo `ADMIN`.
+      summary: Estado de una misión, su bitácora y sus confirmaciones pendientes
+      description: Solo `ADMIN`. Incluye los pasos de la bitácora (G3) y las acciones que esperan su aprobación (G2).
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -191,9 +196,27 @@ components:
           type: string
           enum: [EN_CURSO, ESPERANDO_CONFIRMACION, COMPLETADA, INCOMPLETA, CANCELADA, ERROR]
           description: INCOMPLETA si se alcanzó el límite de pasos (por defecto 15)
+        resumen: { type: string, nullable: true, description: 'Lo que el agente informó al terminar, o el motivo si terminó INCOMPLETA o con ERROR' }
+        pasosEjecutados: { type: integer, minimum: 0 }
         confirmacionesPendientes:
           type: array
           items: { $ref: '#/components/schemas/Confirmacion' }
+        pasos:
+          type: array
+          description: Bitácora de la misión (G3), en orden de ejecución
+          items: { $ref: '#/components/schemas/Paso' }
+
+    Paso:
+      type: object
+      required: [paso, tipo, fecha]
+      properties:
+        paso: { type: integer, minimum: 1 }
+        tipo: { type: string, enum: [RAZONAMIENTO, LLAMADA_HERRAMIENTA, RESULTADO_HERRAMIENTA, CONFIRMACION, ERROR, FIN] }
+        fecha: { type: string, format: date-time, description: UTC }
+        herramienta: { type: string, nullable: true }
+        entrada: { type: object, nullable: true, additionalProperties: true }
+        salida: { type: object, nullable: true, additionalProperties: true }
+        confirmadoPor: { type: string, nullable: true, description: 'sub del ADMIN que aprobó o rechazó (G3)' }
 
     Confirmacion:
       type: object
@@ -205,6 +228,10 @@ components:
         argumentos: { type: object, additionalProperties: true }
         riesgo: { type: string, enum: [ESCRITURA, DINERO] }
         estado: { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA, EJECUTADA, FALLIDA] }
+        justificacion: { type: string, nullable: true }
+        resueltaPor: { type: string, nullable: true, description: 'sub del ADMIN que la resolvió (G3)' }
+        resueltaEn: { type: string, format: date-time, nullable: true, description: UTC }
+        resultado: { type: object, nullable: true, additionalProperties: true, description: 'Lo que devolvió la acción al ejecutarse, o {error} si FALLIDA' }
 
     Metricas:
       type: object

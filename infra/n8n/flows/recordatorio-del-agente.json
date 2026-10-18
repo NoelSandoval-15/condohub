@@ -1,0 +1,194 @@
+{
+  "name": "Recordatorio pedido por el agente",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  },
+  "nodes": [
+    {
+      "id": "r1",
+      "name": "Pedido del agente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "condohub-agente-recordatorio",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agente-recordatorio",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "r2",
+      "name": "Pedir token de servicio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://keycloak:8080/realms/condohub/protocol/openid-connect/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "condohub-servicios"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $env.CONDOHUB_SERVICIOS_SECRET }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "r3",
+      "name": "Consultar morosos en Gestión",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://gateway:8000/gestion/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"query\":\"{ morosos { unidadId codigo bloque propietarioNombre propietarioEmail } }\"}"
+      }
+    },
+    {
+      "id": "r4",
+      "name": "Armar recordatorio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// El ADMIN ya aprobó este recordatorio (G2). Se envía al titular de la unidad; sin correo registrado, va al ADMIN.\nconst pedido = $('Pedido del agente').first().json.body || {};\nconst respuesta = $input.first().json;\nif (respuesta.errors) throw new Error('Gestión respondió con error: ' + JSON.stringify(respuesta.errors[0]));\nif (!pedido.unidadId || !pedido.mensaje) throw new Error('El pedido necesita unidadId y mensaje');\nconst unidad = (respuesta.data.morosos || []).find((m) => String(m.unidadId) === String(pedido.unidadId) || m.codigo === pedido.unidadId);\nif (!unidad) throw new Error('La unidad ' + pedido.unidadId + ' no figura entre los morosos: no se envió el recordatorio');\nconst tieneCorreo = Boolean(unidad.propietarioEmail);\nconst nota = tieneCorreo ? '' : '\\n\\n(Aviso para el administrador: el titular de esta unidad no tiene correo registrado.)';\nreturn [{ json: {\n  para: tieneCorreo ? unidad.propietarioEmail : ($env.ADMIN_EMAIL || 'admin@condohub.test'),\n  asunto: 'Recordatorio de pago · Unidad ' + unidad.codigo,\n  texto: pedido.mensaje + '\\n\\nEste mensaje fue redactado por el agente de gestión y aprobado por el administrador.' + nota,\n  unidadId: unidad.unidadId,\n} }];"
+      }
+    },
+    {
+      "id": "r5",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "condohub-smtp",
+          "name": "CondoHub SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "condohub@condohub.test",
+        "toEmail": "={{ $json.para }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "r6",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"unidadId\": $(\"Armar recordatorio\").first().json.unidadId } }}"
+      }
+    }
+  ],
+  "connections": {
+    "Pedido del agente": {
+      "main": [
+        [
+          {
+            "node": "Pedir token de servicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir token de servicio": {
+      "main": [
+        [
+          {
+            "node": "Consultar morosos en Gestión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar morosos en Gestión": {
+      "main": [
+        [
+          {
+            "node": "Armar recordatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar recordatorio": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar correo": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

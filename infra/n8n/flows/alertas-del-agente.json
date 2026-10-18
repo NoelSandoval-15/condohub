@@ -1,0 +1,114 @@
+{
+  "name": "Alertas del agente de monitoreo",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  },
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "Aviso del agente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "condohub-agente-alertas",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agente-alertas",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "a2",
+      "name": "Armar aviso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// El agente de monitoreo (G5) manda el informe: resumen y alertas. El correo va siempre al ADMIN.\nconst cuerpo = $input.first().json.body || {};\nconst alertas = Array.isArray(cuerpo.alertas) ? cuerpo.alertas : [];\nif (!cuerpo.informeId) throw new Error('El aviso no trae informeId');\nconst hayAlta = alertas.some((a) => a.severidad === 'ALTA');\nconst asunto = '[CondoHub] ' + (hayAlta ? 'ALERTA ALTA' : 'Alerta') + ' del agente de monitoreo: ' + alertas.length + ' anomalía(s)';\nconst lineas = alertas.map((a) => '- [' + a.severidad + '] ' + a.mensaje);\nconst texto = [\n  'El agente de monitoreo detectó anomalías en la gestión del condominio.',\n  '',\n  ...lineas,\n  '',\n  'Resumen: ' + (cuerpo.resumen || ''),\n  'Informe: ' + cuerpo.informeId + ' (' + (cuerpo.generadoEn || '') + ')',\n  '',\n  'El agente solo observa y avisa: no tomó ninguna acción.',\n].join('\\n');\nreturn [{ json: { para: $env.ADMIN_EMAIL || 'admin@condohub.test', asunto, texto, informeId: cuerpo.informeId, alertas: alertas.length } }];"
+      }
+    },
+    {
+      "id": "a3",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "condohub-smtp",
+          "name": "CondoHub SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "condohub@condohub.test",
+        "toEmail": "={{ $json.para }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "a4",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"informeId\": $(\"Armar aviso\").first().json.informeId } }}"
+      }
+    }
+  ],
+  "connections": {
+    "Aviso del agente": {
+      "main": [
+        [
+          {
+            "node": "Armar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar correo": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
