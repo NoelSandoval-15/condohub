@@ -42,6 +42,7 @@ Regla: **un contexto delimitado = un microservicio = una base de datos**. El mis
 | IA | `PerfilFacial` | consentimiento, embeddings | I1, I2 |
 | IA | `ClusterDesconocidos` | apariciones | I3, I4 |
 | Agentes | `Mision` | pasos, herramientas usadas, confirmaciones | G1–G3 |
+| Agentes | `InformeMonitoreo` | métricas de una lectura, alertas, resumen | G5 |
 
 Entre agregados se referencia **solo por id** (`unidadId`), nunca por objeto. Un caso de uso modifica **un agregado por transacción**; si necesita tocar más, usa eventos de dominio (y la saga si cruza servicios).
 

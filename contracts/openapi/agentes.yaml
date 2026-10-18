@@ -21,6 +21,7 @@ tags:
   - name: Salud
   - name: Misiones
   - name: Confirmaciones
+  - name: Monitoreo
 
 paths:
   /salud:
@@ -118,6 +119,45 @@ paths:
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '409': { $ref: '#/components/responses/Conflicto' }
 
+  /monitoreo/ejecutar:
+    post:
+      tags: [Monitoreo]
+      operationId: ejecutarMonitoreo
+      summary: Ejecutar el agente de monitoreo ahora
+      description: |
+        El agente de monitoreo (G5) **observa y avisa, nunca actúa**: lee los morosos y los pagos `PENDIENTE` de Gestión,
+        guarda una lectura de métricas, la compara con el promedio de las últimas lecturas y devuelve un informe con sus alertas.
+        También corre solo cada día (job programado). Solo `ADMIN` (incluida la cuenta de servicio).
+      responses:
+        '200':
+          description: Informe de esta ejecución
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Informe' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
+  /monitoreo/informes:
+    get:
+      tags: [Monitoreo]
+      operationId: listarInformesMonitoreo
+      summary: Últimos informes del agente de monitoreo
+      description: Del más reciente al más antiguo. Solo `ADMIN`.
+      parameters:
+        - { name: limite, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: Informes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Informe' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -165,6 +205,40 @@ components:
         argumentos: { type: object, additionalProperties: true }
         riesgo: { type: string, enum: [ESCRITURA, DINERO] }
         estado: { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA, EJECUTADA, FALLIDA] }
+
+    Metricas:
+      type: object
+      required: [unidadesMorosas, deudaVencida, pagosPendientes]
+      properties:
+        unidadesMorosas: { type: integer, minimum: 0 }
+        deudaVencida: { type: string, description: 'Dinero como string decimal con 2 decimales (F10)', example: '1250.50' }
+        pagosPendientes: { type: integer, minimum: 0, description: 'Pagos en estado PENDIENTE (F8)' }
+        diasPagoMasAntiguo: { type: integer, nullable: true, minimum: 0, description: 'Días del pago PENDIENTE más antiguo' }
+
+    Alerta:
+      type: object
+      required: [tipo, severidad, mensaje]
+      properties:
+        tipo: { type: string, enum: [MOROSIDAD_CRECIENTE, DEUDA_VENCIDA_CRECIENTE, PAGOS_SIN_CONCILIAR] }
+        severidad: { type: string, enum: [MEDIA, ALTA] }
+        mensaje: { type: string }
+        valor: { type: string, description: 'Valor observado' }
+        referencia: { type: string, description: 'Valor de comparación (promedio anterior o umbral)' }
+
+    Informe:
+      type: object
+      required: [id, generadoEn, origen, metricas, alertas, resumen]
+      properties:
+        id: { type: string, format: uuid }
+        generadoEn: { type: string, format: date-time, description: UTC }
+        origen: { type: string, enum: [PROGRAMADO, MANUAL] }
+        metricas: { $ref: '#/components/schemas/Metricas' }
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/Alerta' }
+        resumen: { type: string }
+        lineaBase: { type: boolean, description: 'true si no había lecturas anteriores: solo se evaluaron los pagos sin conciliar' }
+        notificado: { type: boolean, description: 'true si el aviso al ADMIN por n8n se envió' }
     Problema:
       type: object
       description: RFC 7807
@@ -188,6 +262,11 @@ components:
           schema: { $ref: '#/components/schemas/Problema' }
     SinPermiso:
       description: El rol del token no puede usar este endpoint
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ServicioNoDisponible:
+      description: Gestión no responde o rechazó la cuenta de servicio
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problema' }

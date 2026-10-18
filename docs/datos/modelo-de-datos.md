@@ -116,6 +116,8 @@ Patrones de acceso: pases vigentes del día para la PWA (GSI1 `PASES#<fecha>`), 
 | `confirmaciones` | herramienta, argumentos, riesgo; el validador exige ADMIN y fecha para aprobar | G2, F5 |
 | `bitacora` | cada paso: herramienta, entrada, salida, quién confirmó | G3 |
 | `memoria` | lo que el agente recuerda por unidad o global, con expiración opcional | G1 |
+| `metricas` | una lectura del monitoreo: unidades morosas, deuda vencida (`Decimal128`), pagos pendientes, días del más antiguo; solo se agregan | G5 |
+| `informes` | cada ejecución del agente de monitoreo: métricas, alertas (tipo, severidad), resumen, si se avisó a n8n; `informeId` único | G5 |
 
 ## 6. Datos de demostración
 
