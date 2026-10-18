@@ -51,7 +51,7 @@ Actores: solo `ADMIN`, `RESIDENTE` y `GUARDIA` (roles del realm `condohub` en Ke
 │   ├── gestion/               # Spring Boot 3 · Java 21 · PostgreSQL · GraphQL · Hexagonal   (Aldana)
 │   ├── reservas/              # Laravel 12 · PHP 8.2+ · PostgreSQL · REST · Clean · orquestador saga (Erick)
 │   ├── acceso/                # Next.js 14 · TypeScript · DynamoDB · REST · Clean · sync offline (Erick)
-│   ├── ia/                    # FastAPI · Python 3.11 · PyTorch · Whisper · MongoDB + MinIO · Clean (Luis)
+│   ├── ia/                    # FastAPI · Python 3.11 · PyTorch + TensorFlow/Keras · Whisper · MongoDB + MinIO · Clean (Luis)
 │   └── agentes/               # Python 3.11 · MongoDB · REST + servidor MCP · Clean           (Aldana)
 ├── frontends/                 # micro frontends con Module Federation; cada uno es su propio repo
 │   ├── shell/                 # React + Vite · login OIDC y host de remotos                  (Erick)

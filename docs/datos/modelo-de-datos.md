@@ -105,7 +105,7 @@ Patrones de acceso: pases vigentes del día para la PWA (GSI1 `PASES#<fecha>`), 
 | `desconocidos` | embedding, cámara, día, cluster | I3 (índice TTL de 30 días con `expiraEn`) |
 | `clusters_desconocidos` | resultado de cada corrida de DBSCAN, apariciones, días distintos, alertado | I4 |
 | `predicciones` | toda inferencia de rostro o placa con confianza, umbral, modelo, versión y latencia | I5 |
-| `modelos` | registro de modelos entrenados con métricas; un solo activo por tarea (índice único parcial) | I5, informe de ML |
+| `modelos` | registro de modelos entrenados con métricas; un solo activo por tarea (índice único parcial). Tareas: reconocimiento facial, detección y OCR de placas, lectura de placas con CNN (`LECTURA_PLACAS_CNN`, formatos `KERAS`/`TFLITE`, además de `PYTORCH`, `ONNX`, `ONNX_INT8`, `SKLEARN`), clustering | I5, informe de ML |
 | `reportes` | `reporteId`, transcripción, consulta GraphQL (validador: solo `query`; una consulta rechazada por G4 no se guarda, queda el motivo), archivo generado (clave en S3), estado `PROCESANDO/LISTO/FALLIDO` | G4 |
 
 ## 5. Agentes (MongoDB `agentes`)
