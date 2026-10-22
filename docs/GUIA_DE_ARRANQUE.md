@@ -17,7 +17,7 @@ Estado real de la base sobre la que se construye (15/10/2026) y cómo continuar.
 | Agentes | FastAPI + Clean; misiones y confirmaciones solo para ADMIN (501): **falta el servidor MCP, el LLM y MongoDB** | 26 tests, ruff, mypy; probado por el gateway |
 | Reservas | Laravel 12 + Clean; endpoints protegidos por rol (501): **faltan R1–R8 y la saga**; esquema SQL migrado y sus pruebas de BD en verde | 31 tests (Pest), PHPStan nivel 8, Pint; probado por el gateway |
 | Shell | React + Vite; login OIDC real con renovación silenciosa del token, menú por rol, host de remotos, estilos base | 14 tests, lint, build; login probado en el navegador |
-| Admin, residente, guardia | Esqueletos React (módulo ES con `mount`/`unmount`, consultan `miPerfil`); **faltan todas las pantallas de negocio** | 3 tests cada uno, build |
+| Admin, residente, guardia | Esqueletos (módulo ES con `mount`/`unmount`, consultan `miPerfil`): admin en **Angular 18** (Web Component), residente y guardia en React; **faltan todas las pantallas de negocio** | 3 tests cada uno, build |
 | Contenedores y CI | `Dockerfile` en cada repo, `infra/docker-compose.apps.yml`, GitHub Actions con pruebas e imagen en GHCR | Plataforma completa en contenedores; CI en verde en los 10 repos |
 
 **Actualización 16/10/2026:** Gestión ya tiene `miPerfil` y `enlazarCuenta`; el shell renueva el token en silencio; `admin`, `residente` y `guardia` tienen esqueleto (React, muestran el perfil). Cómo levantarlo todo y entrar: sección 6.
@@ -99,7 +99,7 @@ Cada esqueleto trae una **matriz rol × endpoint** en sus tests; cuando agregues
 Hecho: pipeline MTCNN → FaceNet, línea base con métricas, registro con fotos propias y ajuste fino (no concluyente; el servicio usa el modelo preentrenado). **Hallazgo:** con LFW el FAR era 0,12 %, pero con amigos reales el modelo aceptó a 2 de 3; el umbral hay que calibrarlo con desconocidos reales (detalle en `services/ia/ml/README.md`).
 
 1. Reunir fotos con consentimiento (`docs/negocio/consentimiento-facial.md`): las de los tres y 10–15 desconocidos; probar otros métodos de comparación y fijar el umbral.
-2. Dataset de placas (YOLO + OCR) y DBSCAN con datos reales (I4).
+2. ~~Dataset de placas y DBSCAN~~: hechos (18/10/2026). Placas: YOLOv8n + lector global preentrenado + CNN propia en TensorFlow/Keras (requisito E.4); DBSCAN con simulación de LFW (sin fotos reales de portería). Detalle en `services/ia/ml/README.md`.
 3. Flujos de n8n (el compose ya los espera en `infra/n8n/flows/`).
 4. Quitar el `501` de cada endpoint de IA al implementarlo y actualizar `ia.yaml` si cambia algo.
 

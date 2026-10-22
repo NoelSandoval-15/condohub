@@ -87,21 +87,30 @@ services:
       - ../services/ia/modelos:/modelos:ro   # fichas (en git) y .onnx (del Drive del equipo, no van a git)
     ports: ["8083:8083"]
 
-  ia-agrupamiento:               # I4: DBSCAN nocturno (02:00 hora de La Paz) con la misma imagen que ia
+  ia-agrupamiento:               # I4: DBSCAN nocturno (02:00 hora de La Paz) con la misma imagen que ia; para la demo, I4_CADA_SEGUNDOS lo repite cada N s
     image: condohub-ia:dev
     depends_on: [ia]
     restart: unless-stopped
     environment:
       <<: *ia-entorno
       TZ: America/La_Paz
+      # Parámetros de I4 (reglas-de-negocio.md): los valores por defecto son los de la regla; la demo los relaja en infra/.env
+      I4_CADA_SEGUNDOS: ${I4_CADA_SEGUNDOS:-}
+      I4_MIN_APARICIONES: ${I4_MIN_APARICIONES:-3}
+      I4_MIN_DIAS: ${I4_MIN_DIAS:-3}
+      I4_REAVISO_CADA: ${I4_REAVISO_CADA:-0}
     command:
       - sh
       - -c
       - |
         while true; do
-          ahora=$$(date +%s); proxima=$$(date -d "02:00" +%s)
-          [ "$$proxima" -le "$$ahora" ] && proxima=$$(date -d "tomorrow 02:00" +%s)
-          sleep $$((proxima - ahora))
+          if [ -n "$I4_CADA_SEGUNDOS" ]; then
+            sleep "$I4_CADA_SEGUNDOS"
+          else
+            ahora=$(date +%s); proxima=$(date -d "02:00" +%s)
+            [ "$proxima" -le "$ahora" ] && proxima=$(date -d "tomorrow 02:00" +%s)
+            sleep $((proxima - ahora))
+          fi
           python -m app.jobs.agrupar_desconocidos || echo "el job de I4 falló; se reintenta mañana"
         done
 

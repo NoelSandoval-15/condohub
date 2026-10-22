@@ -29,6 +29,7 @@ Consecuencias para el agente:
 
 @docs/negocio/reglas-de-negocio.md
 @docs/arquitectura/ddd.md
+@docs/arquitectura/frontends.md
 
 ## Proyecto
 
@@ -63,6 +64,7 @@ Actores: solo `ADMIN`, `RESIDENTE` y `GUARDIA` (roles del realm `condohub` en Ke
 └── docs/
     ├── negocio/reglas-de-negocio.md   # lenguaje ubicuo + reglas con código (F, R, S, A, O, I, G)
     ├── arquitectura/ddd.md            # subdominios, mapa de contextos, agregados, eventos
+    ├── arquitectura/frontends.md      # arquitectura limpia de los frontends, límites de tamaño, carpetas
     ├── datos/modelo-de-datos.md       # bases por servicio, diagramas y qué regla protege cada restricción
     ├── adr/                           # decisiones de arquitectura (NNNN-titulo.md)
     └── PLAN_4_SEMANAS.md              # fases, tareas y responsables

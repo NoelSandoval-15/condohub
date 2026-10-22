@@ -129,6 +129,33 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /rostros/visitantes-recurrentes:
+    get:
+      tags: [Rostros]
+      operationId: listarVisitantesRecurrentes
+      summary: Visitantes recurrentes no registrados detectados por el agrupamiento nocturno
+      description: |
+        I4: lista los visitantes (clústeres de desconocidos) que ya generaron aviso, del más reciente al más antiguo.
+        No incluye embeddings ni fotos: solo el identificador del visitante y cuántas veces y en cuántos días apareció.
+        Es una lectura de apoyo para la pantalla del guardia y la consola del `ADMIN` mientras Acceso no publique
+        `GET /api/alertas` (la capa anticorrupción de Acceso sigue siendo el camino previsto, ver `acceso.yaml`).
+        Roles: `GUARDIA`, `ADMIN`.
+      parameters:
+        - name: limite
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Visitantes recurrentes con aviso, el más reciente primero
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VisitanteRecurrente' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /placas/leer:
     post:
       tags: [Placas]
@@ -303,9 +330,20 @@ components:
           nullable: true
           description: Residente reconocido o candidato; solo cuando `resultado` es `RECONOCIDO` o `DUDOSO`
         confianza: { $ref: '#/components/schemas/Confianza' }
-        modelo: { type: string, example: facenet-triplet }
+        modelo: { type: string, example: facenet-vggface2 }
         version: { type: string, example: '1.0.0' }
         prediccionId: { type: string, description: 'Id del registro en `predicciones` (I5)' }
+
+    VisitanteRecurrente:
+      type: object
+      required: [clusterId, apariciones, diasDistintos, primeraVez, ultimaVez]
+      properties:
+        clusterId: { type: string, description: 'Identificador estable del visitante (dura entre noches)' }
+        apariciones: { type: integer, minimum: 1 }
+        diasDistintos: { type: integer, minimum: 1 }
+        primeraVez: { type: string, format: date-time }
+        ultimaVez: { type: string, format: date-time }
+        alertadoEn: { type: string, format: date-time, nullable: true, description: 'Momento en que se avisó (I4)' }
 
     PerfilRegistrado:
       type: object

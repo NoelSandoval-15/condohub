@@ -8,3 +8,14 @@ frontends/*/
 *.zip
 .idea/
 .vscode/
+.env.*
+!.env.example
+# Documentos de entrega, informes, notebooks de Colab y notas locales (no son código)
+/*.docx
+/*.pdf
+/*.ipynb
+/*.txt
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
