@@ -12,6 +12,7 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - morosos:           solo ADMIN (incluida la cuenta de servicio de n8n y Agentes).
   - emitirExpensas:    solo ADMIN.
   - registrarPago:     ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
+  - confirmarPago, rechazarPago: solo ADMIN.
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
@@ -50,7 +51,7 @@ type Mutation {
     presupuesto: Decimal!
   ): EmisionExpensas!
 
-  "Registra el pago de una unidad a partir de su comprobante (F8): nace siempre PENDIENTE y solo el ADMIN lo confirma o rechaza después; nunca se confirma desde el cliente (F9). Idempotente (O1–O3): repetir la misma idempotencyKey devuelve el mismo pago que la primera vez, sin crear otro. Errores: F1 si un RESIDENTE registra para una unidad que no es suya; F8 si la fecha o el banco no son válidos; F10 si el monto no es mayor a 0 o tiene más de 2 decimales; O1 si la clave no es un UUID v4 o la hora del dispositivo no es válida; NOT_FOUND si la unidad no existe."
+  "Registra el pago de una unidad a partir de su comprobante (F8): nace siempre PENDIENTE y solo el ADMIN lo confirma o rechaza después; nunca se confirma desde el cliente (F9). Idempotente (O1–O3): repetir la misma idempotencyKey devuelve el mismo pago que la primera vez, sin crear otro. Errores: F1 si un RESIDENTE registra para una unidad que no es suya; F8 si la fecha no es válida o es futura, o el banco no es válido; F10 si el monto no es mayor a 0 o tiene más de 2 decimales; O1 si la clave no es un UUID v4 o la hora del dispositivo no es válida; NOT_FOUND si la unidad no existe."
   registrarPago(
     unidadId: ID!
     monto: Decimal!
@@ -63,6 +64,23 @@ type Mutation {
     "Hora del dispositivo al crear la operación, ISO-8601 con zona (O1). Se guarda aparte de la del servidor."
     horaDispositivo: String
   ): Pago!
+
+  "Confirma un pago PENDIENTE (F8): se imputa FIFO a los cargos pendientes de la unidad, primero los vencidos más antiguos (F7); el excedente queda como saldo a favor y se emite el recibo. Solo ADMIN. Errores: F8 si el pago ya no está PENDIENTE; NOT_FOUND si no existe."
+  confirmarPago(pagoId: ID!): ConfirmacionPago!
+
+  "Rechaza un pago PENDIENTE con motivo obligatorio (F8). No toca ningún cargo. Solo ADMIN. Errores: F8 si falta el motivo, supera 300 caracteres o el pago ya no está PENDIENTE; NOT_FOUND si no existe."
+  rechazarPago(pagoId: ID!, motivo: String!): Pago!
+}
+
+"Resultado de confirmar un pago (F7, F8)."
+type ConfirmacionPago {
+  pago: Pago!
+  "Número correlativo del recibo emitido (F8)."
+  reciboNumero: Int!
+  "Parte del pago aplicada a cargos (F7)."
+  imputado: Decimal!
+  "Excedente de este pago que quedó como saldo a favor de la unidad (F7)."
+  saldoAFavor: Decimal!
 }
 
 "Resultado de emitir las expensas de un periodo (F3, F4)."
@@ -114,6 +132,8 @@ type Pago {
   "Fecha del comprobante, ISO-8601 (yyyy-MM-dd)."
   fechaPago: String!
   estado: EstadoPago!
+  "Motivo del rechazo; solo cuando está RECHAZADO (F8)."
+  motivoRechazo: String
 }
 
 type Perfil {
