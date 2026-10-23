@@ -86,7 +86,7 @@ type Mutation {
     misionId: String
   ): [RecargoPropuesto!]!
 
-  "Confirma un recargo PROPUESTO (F5): recién aquí se crea el cargo RECARGO; si la unidad tiene saldo a favor, se aplica (F7). Solo ADMIN. Errores: F5 si ya no está PROPUESTO; NOT_FOUND."
+  "Confirma un recargo PROPUESTO (F5): recién aquí se crea el cargo RECARGO, que vence el día de vencimiento (F4, 10 inicial) del mes siguiente; si la unidad tiene saldo a favor, se aplica (F7). Solo ADMIN. Errores: F5 si ya no está PROPUESTO; NOT_FOUND."
   confirmarRecargo(propuestaId: ID!): RecargoPropuesto!
 
   "Rechaza un recargo PROPUESTO (F5): no se cobra. Solo ADMIN. Errores: F5 si ya no está PROPUESTO o el motivo supera 300 caracteres; NOT_FOUND."
