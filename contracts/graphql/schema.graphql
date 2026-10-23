@@ -42,7 +42,7 @@ type Mutation {
   "Enlaza la cuenta de Keycloak (su sub) con una persona de Gestión (F1). Solo ADMIN. Repetir el mismo enlace no falla; una cuenta ya enlazada a otra persona, o una persona con otra cuenta, da F1."
   enlazarCuenta(personaId: ID!, keycloakSub: String!): PersonaCuenta!
 
-  "Emite las expensas de un periodo (F3): una por unidad activa = presupuesto × alícuota, redondeada a 2 decimales, con la diferencia de redondeo en la unidad de mayor alícuota. Vencen el día configurado del mes (F4). Solo ADMIN. Errores: F2 si las alícuotas activas no suman 100 %; F3 si el periodo ya fue emitido o el presupuesto no es válido; F10 si el presupuesto tiene más de 2 decimales."
+  "Emite las expensas de un periodo (F3): una por unidad activa = presupuesto × alícuota, redondeada a 2 decimales, con la diferencia de redondeo en la unidad de mayor alícuota. Vencen el día configurado del mes (F4). Solo ADMIN. Errores: F2 si las alícuotas activas no suman 100 %; F3 si el periodo ya fue emitido, es un mes pasado o el presupuesto no es válido; F10 si el presupuesto tiene más de 2 decimales."
   emitirExpensas(
     "Año-mes, ej. \"2026-11\"."
     periodo: String!

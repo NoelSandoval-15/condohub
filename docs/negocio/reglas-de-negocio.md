@@ -31,7 +31,7 @@ Los valores numéricos son **parámetros** (tabla `parametro` en Gestión o conf
 
 - **F1.** Cada unidad tiene exactamente un propietario titular y cero o más residentes. Solo el titular y sus residentes ven el estado de cuenta de esa unidad.
 - **F2.** La suma de alícuotas de todas las unidades activas debe ser 100 %. No se pueden emitir expensas si no cuadra.
-- **F3.** Las expensas se emiten el día **1** de cada mes: `expensa = presupuesto_mensual × alícuota`, redondeada a 2 decimales. La diferencia de redondeo va a la unidad de mayor alícuota.
+- **F3.** Las expensas se emiten el día **1** de cada mes: `expensa = presupuesto_mensual × alícuota`, redondeada a 2 decimales. La diferencia de redondeo va a la unidad de mayor alícuota. Cada periodo se emite una sola vez y solo el mes actual o uno futuro: un mes pasado se rechaza, porque sus expensas nacerían vencidas (F4) y las unidades pasarían a morosas sin haber podido pagar (afectaría R4).
 - **F4.** Vencimiento: día **10** del mes. Un cargo impago al día 11 está vencido y la unidad pasa a morosa.
 - **F5.** Recargo por mora: **2 % mensual simple** sobre el saldo vencido. El sistema (o el agente) lo **propone**; solo se aplica cuando el `ADMIN` lo confirma. Nunca se aplica un recargo sin esa confirmación.
 - **F6.** Los cargos no se borran ni se editan. Una corrección es una nota de crédito o un cargo de ajuste con motivo.
