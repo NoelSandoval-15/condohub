@@ -10,6 +10,7 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - miPerfil:          cualquier rol autenticado (devuelve solo lo del propio token).
   - enlazarCuenta:     solo ADMIN.
   - morosos:           solo ADMIN (incluida la cuenta de servicio de n8n y Agentes).
+  - emitirExpensas:    solo ADMIN.
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
@@ -40,6 +41,26 @@ type Query {
 type Mutation {
   "Enlaza la cuenta de Keycloak (su sub) con una persona de Gestión (F1). Solo ADMIN. Repetir el mismo enlace no falla; una cuenta ya enlazada a otra persona, o una persona con otra cuenta, da F1."
   enlazarCuenta(personaId: ID!, keycloakSub: String!): PersonaCuenta!
+
+  "Emite las expensas de un periodo (F3): una por unidad activa = presupuesto × alícuota, redondeada a 2 decimales, con la diferencia de redondeo en la unidad de mayor alícuota. Vencen el día configurado del mes (F4). Solo ADMIN. Errores: F2 si las alícuotas activas no suman 100 %; F3 si el periodo ya fue emitido o el presupuesto no es válido; F10 si el presupuesto tiene más de 2 decimales."
+  emitirExpensas(
+    "Año-mes, ej. \"2026-11\"."
+    periodo: String!
+    presupuesto: Decimal!
+  ): EmisionExpensas!
+}
+
+"Resultado de emitir las expensas de un periodo (F3, F4)."
+type EmisionExpensas {
+  "Año-mes, ej. \"2026-11\"."
+  periodo: String!
+  presupuesto: Decimal!
+  "Fecha de vencimiento de las expensas, ISO-8601 (yyyy-MM-dd) (F4)."
+  fechaVencimiento: String!
+  "Cantidad de expensas emitidas: una por unidad activa."
+  unidades: Int!
+  "Suma de las expensas emitidas; siempre igual al presupuesto (F3)."
+  total: Decimal!
 }
 
 type PersonaCuenta {
