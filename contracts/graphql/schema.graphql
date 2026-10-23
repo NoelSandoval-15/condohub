@@ -13,6 +13,8 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - emitirExpensas:    solo ADMIN.
   - registrarPago:     ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
   - confirmarPago, rechazarPago: solo ADMIN.
+  - recargosPropuestos, proponerRecargo, confirmarRecargo, rechazarRecargo: solo ADMIN (incluida la cuenta de
+    servicio de Agentes, que solo propone tras la aprobación del ADMIN, G2).
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
@@ -38,6 +40,9 @@ type Query {
 
   "Unidades morosas (F4: cargo vencido e impago), de mayor a menor deuda vencida, con el contacto del propietario titular. Solo ADMIN."
   morosos: [Moroso!]!
+
+  "Recargos en estado PROPUESTO, a la espera de que el ADMIN los confirme o rechace (F5). Solo ADMIN."
+  recargosPropuestos: [RecargoPropuesto!]!
 }
 
 type Mutation {
@@ -70,6 +75,49 @@ type Mutation {
 
   "Rechaza un pago PENDIENTE con motivo obligatorio (F8). No toca ningún cargo. Solo ADMIN. Errores: F8 si falta el motivo, supera 300 caracteres o el pago ya no está PENDIENTE; NOT_FOUND si no existe."
   rechazarPago(pagoId: ID!, motivo: String!): Pago!
+
+  "Propone los recargos por mora del mes en curso para una unidad (F5): uno por cada cargo vencido (sin contar recargos) = porcentaje mensual (parámetro, 2 % inicial) × su saldo vencido. NO crea cargos: quedan PROPUESTO hasta que el ADMIN los confirme. Repetirlo en el mismo mes no duplica: devuelve las propuestas del mes. Solo ADMIN. Errores: F5 si la unidad no tiene saldo vencido sin recargo este mes, si el monto enviado no coincide con el calculado o el motivo supera 300 caracteres; NOT_FOUND si la unidad no existe."
+  proponerRecargo(
+    unidadId: ID!
+    "Opcional: total que espera quien propone (p. ej. el agente). Si no coincide con el calculado por Gestión, se rechaza con F5."
+    monto: Decimal
+    motivo: String
+    "Id de la misión del agente que lo propone (G3); sin él, el origen es ADMIN."
+    misionId: String
+  ): [RecargoPropuesto!]!
+
+  "Confirma un recargo PROPUESTO (F5): recién aquí se crea el cargo RECARGO; si la unidad tiene saldo a favor, se aplica (F7). Solo ADMIN. Errores: F5 si ya no está PROPUESTO; NOT_FOUND."
+  confirmarRecargo(propuestaId: ID!): RecargoPropuesto!
+
+  "Rechaza un recargo PROPUESTO (F5): no se cobra. Solo ADMIN. Errores: F5 si ya no está PROPUESTO o el motivo supera 300 caracteres; NOT_FOUND."
+  rechazarRecargo(propuestaId: ID!, motivo: String): RecargoPropuesto!
+}
+
+enum EstadoRecargo {
+  PROPUESTO
+  CONFIRMADO
+  RECHAZADO
+}
+
+"Recargo por mora sobre un cargo vencido (F5). Solo se cobra cuando está CONFIRMADO."
+type RecargoPropuesto {
+  id: ID!
+  unidadId: ID!
+  "Cargo vencido sobre el que se calcula."
+  cargoOrigenId: ID!
+  "Mes del recargo, año-mes (ej. \"2026-10\"). Hay a lo sumo uno por cargo vencido y mes."
+  periodo: String!
+  "Porcentaje mensual aplicado, ej. \"2.00\"."
+  porcentaje: Decimal!
+  "Saldo vencido del cargo de origen al proponerlo."
+  base: Decimal!
+  monto: Decimal!
+  estado: EstadoRecargo!
+  "SISTEMA, AGENTE o ADMIN."
+  origen: String!
+  motivo: String
+  "Cargo RECARGO creado al confirmar."
+  cargoGeneradoId: ID
 }
 
 "Resultado de confirmar un pago (F7, F8)."
