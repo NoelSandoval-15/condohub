@@ -31,12 +31,12 @@ Los valores numéricos son **parámetros** (tabla `parametro` en Gestión o conf
 
 - **F1.** Cada unidad tiene exactamente un propietario titular y cero o más residentes. Solo el titular y sus residentes ven el estado de cuenta de esa unidad.
 - **F2.** La suma de alícuotas de todas las unidades activas debe ser 100 %. No se pueden emitir expensas si no cuadra.
-- **F3.** Las expensas se emiten el día **1** de cada mes: `expensa = presupuesto_mensual × alícuota`, redondeada a 2 decimales. La diferencia de redondeo va a la unidad de mayor alícuota.
+- **F3.** Las expensas se emiten el día **1** de cada mes: `expensa = presupuesto_mensual × alícuota`, redondeada a 2 decimales. La diferencia de redondeo va a la unidad de mayor alícuota. Cada periodo se emite una sola vez y solo el mes actual o uno futuro: un mes pasado se rechaza, porque sus expensas nacerían vencidas (F4) y las unidades pasarían a morosas sin haber podido pagar (afectaría R4).
 - **F4.** Vencimiento: día **10** del mes. Un cargo impago al día 11 está vencido y la unidad pasa a morosa.
-- **F5.** Recargo por mora: **2 % mensual simple** sobre el saldo vencido. El sistema (o el agente) lo **propone**; solo se aplica cuando el `ADMIN` lo confirma. Nunca se aplica un recargo sin esa confirmación.
+- **F5.** Recargo por mora: **2 % mensual simple** sobre el saldo vencido. El sistema (o el agente) lo **propone**; solo se aplica cuando el `ADMIN` lo confirma. Nunca se aplica un recargo sin esa confirmación. El cargo de recargo vence como una expensa: el día de vencimiento (F4) del mes siguiente a su confirmación, así el residente tiene tiempo de pagarlo.
 - **F6.** Los cargos no se borran ni se editan. Una corrección es una nota de crédito o un cargo de ajuste con motivo.
-- **F7.** Un pago confirmado se imputa a los cargos vencidos más antiguos primero (FIFO). El excedente queda como saldo a favor.
-- **F8.** Ciclo de un pago: el residente sube el comprobante → pago `PENDIENTE` → conciliación (n8n compara con el extracto + el `ADMIN` confirma) → `CONFIRMADO` o `RECHAZADO` con motivo. El recibo se emite solo al confirmar.
+- **F7.** Un pago confirmado se imputa a los cargos vencidos más antiguos primero (FIFO). Si alcanza, sigue con los cargos pendientes aún no vencidos, también del vencimiento más antiguo al más reciente. El excedente queda como saldo a favor, y el saldo a favor se aplica automáticamente, con el mismo orden FIFO, a los cargos que se emitan después (los pagos más antiguos se consumen primero).
+- **F8.** Ciclo de un pago: el residente sube el comprobante → pago `PENDIENTE` → conciliación (n8n compara con el extracto + el `ADMIN` confirma) → `CONFIRMADO` o `RECHAZADO` con motivo. El recibo se emite solo al confirmar. La fecha del comprobante no puede ser futura: nadie paga en un día que aún no llega.
 - **F9.** Un pago **nunca se confirma offline** ni desde el cliente. El OCR del comprobante solo prellena monto, fecha y banco; el residente revisa antes de enviar.
 - **F10.** Dinero: `BigDecimal` en Java, `NUMERIC(12,2)` en PostgreSQL, string decimal en JSON. Jamás `float`/`double`. Una sola moneda configurable.
 - **F11.** Proveedores y egresos se registran para el presupuesto y los reportes. No hay flujo de aprobación de gastos.

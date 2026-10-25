@@ -16,8 +16,10 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       keycloak: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     environment:
       <<: *keycloak
+      RABBITMQ_HOST: rabbitmq                             # outbox de eventos (S4)
       GESTION_DB_URL: jdbc:postgresql://postgres:5432/gestion
       GESTION_DB_USER: gestion
       GESTION_DB_PASSWORD: ${GESTION_DB_PASSWORD:-gestion_dev}

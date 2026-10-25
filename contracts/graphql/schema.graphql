@@ -10,6 +10,11 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - miPerfil:          cualquier rol autenticado (devuelve solo lo del propio token).
   - enlazarCuenta:     solo ADMIN.
   - morosos:           solo ADMIN (incluida la cuenta de servicio de n8n y Agentes).
+  - emitirExpensas:    solo ADMIN.
+  - registrarPago:     ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
+  - confirmarPago, rechazarPago: solo ADMIN.
+  - recargosPropuestos, proponerRecargo, confirmarRecargo, rechazarRecargo: solo ADMIN (incluida la cuenta de
+    servicio de Agentes, que solo propone tras la aprobación del ADMIN, G2).
 Errores: `errors[].extensions.code` = código de la regla violada (ej. "F1") o FORBIDDEN / NOT_FOUND.
 """
 schema {
@@ -35,11 +40,108 @@ type Query {
 
   "Unidades morosas (F4: cargo vencido e impago), de mayor a menor deuda vencida, con el contacto del propietario titular. Solo ADMIN."
   morosos: [Moroso!]!
+
+  "Recargos en estado PROPUESTO, a la espera de que el ADMIN los confirme o rechace (F5). Solo ADMIN."
+  recargosPropuestos: [RecargoPropuesto!]!
 }
 
 type Mutation {
   "Enlaza la cuenta de Keycloak (su sub) con una persona de Gestión (F1). Solo ADMIN. Repetir el mismo enlace no falla; una cuenta ya enlazada a otra persona, o una persona con otra cuenta, da F1."
   enlazarCuenta(personaId: ID!, keycloakSub: String!): PersonaCuenta!
+
+  "Emite las expensas de un periodo (F3): una por unidad activa = presupuesto × alícuota, redondeada a 2 decimales, con la diferencia de redondeo en la unidad de mayor alícuota. Vencen el día configurado del mes (F4). Solo ADMIN. Errores: F2 si las alícuotas activas no suman 100 %; F3 si el periodo ya fue emitido, es un mes pasado o el presupuesto no es válido; F10 si el presupuesto tiene más de 2 decimales."
+  emitirExpensas(
+    "Año-mes, ej. \"2026-11\"."
+    periodo: String!
+    presupuesto: Decimal!
+  ): EmisionExpensas!
+
+  "Registra el pago de una unidad a partir de su comprobante (F8): nace siempre PENDIENTE y solo el ADMIN lo confirma o rechaza después; nunca se confirma desde el cliente (F9). Idempotente (O1–O3): repetir la misma idempotencyKey devuelve el mismo pago que la primera vez, sin crear otro. Errores: F1 si un RESIDENTE registra para una unidad que no es suya; F8 si la fecha no es válida o es futura, o el banco no es válido; F10 si el monto no es mayor a 0 o tiene más de 2 decimales; O1 si la clave no es un UUID v4 o la hora del dispositivo no es válida; NOT_FOUND si la unidad no existe."
+  registrarPago(
+    unidadId: ID!
+    monto: Decimal!
+    "Fecha del comprobante, ISO-8601 (yyyy-MM-dd)."
+    fechaPago: String!
+    "Banco del comprobante (lo prellena el OCR; el residente lo revisa, F9)."
+    banco: String
+    "UUID v4 generado una sola vez en el dispositivo (O1)."
+    idempotencyKey: ID!
+    "Hora del dispositivo al crear la operación, ISO-8601 con zona (O1). Se guarda aparte de la del servidor."
+    horaDispositivo: String
+  ): Pago!
+
+  "Confirma un pago PENDIENTE (F8): se imputa FIFO a los cargos pendientes de la unidad, primero los vencidos más antiguos (F7); el excedente queda como saldo a favor y se emite el recibo. Solo ADMIN. Errores: F8 si el pago ya no está PENDIENTE; NOT_FOUND si no existe."
+  confirmarPago(pagoId: ID!): ConfirmacionPago!
+
+  "Rechaza un pago PENDIENTE con motivo obligatorio (F8). No toca ningún cargo. Solo ADMIN. Errores: F8 si falta el motivo, supera 300 caracteres o el pago ya no está PENDIENTE; NOT_FOUND si no existe."
+  rechazarPago(pagoId: ID!, motivo: String!): Pago!
+
+  "Propone los recargos por mora del mes en curso para una unidad (F5): uno por cada cargo vencido (sin contar recargos) = porcentaje mensual (parámetro, 2 % inicial) × su saldo vencido. NO crea cargos: quedan PROPUESTO hasta que el ADMIN los confirme. Repetirlo en el mismo mes no duplica: devuelve las propuestas del mes. Solo ADMIN. Errores: F5 si la unidad no tiene saldo vencido sin recargo este mes, si el monto enviado no coincide con el calculado o el motivo supera 300 caracteres; NOT_FOUND si la unidad no existe."
+  proponerRecargo(
+    unidadId: ID!
+    "Opcional: total que espera quien propone (p. ej. el agente). Si no coincide con el calculado por Gestión, se rechaza con F5."
+    monto: Decimal
+    motivo: String
+    "Id de la misión del agente que lo propone (G3); sin él, el origen es ADMIN."
+    misionId: String
+  ): [RecargoPropuesto!]!
+
+  "Confirma un recargo PROPUESTO (F5): recién aquí se crea el cargo RECARGO, que vence el día de vencimiento (F4, 10 inicial) del mes siguiente; si la unidad tiene saldo a favor, se aplica (F7). Solo ADMIN. Errores: F5 si ya no está PROPUESTO; NOT_FOUND."
+  confirmarRecargo(propuestaId: ID!): RecargoPropuesto!
+
+  "Rechaza un recargo PROPUESTO (F5): no se cobra. Solo ADMIN. Errores: F5 si ya no está PROPUESTO o el motivo supera 300 caracteres; NOT_FOUND."
+  rechazarRecargo(propuestaId: ID!, motivo: String): RecargoPropuesto!
+}
+
+enum EstadoRecargo {
+  PROPUESTO
+  CONFIRMADO
+  RECHAZADO
+}
+
+"Recargo por mora sobre un cargo vencido (F5). Solo se cobra cuando está CONFIRMADO."
+type RecargoPropuesto {
+  id: ID!
+  unidadId: ID!
+  "Cargo vencido sobre el que se calcula."
+  cargoOrigenId: ID!
+  "Mes del recargo, año-mes (ej. \"2026-10\"). Hay a lo sumo uno por cargo vencido y mes."
+  periodo: String!
+  "Porcentaje mensual aplicado, ej. \"2.00\"."
+  porcentaje: Decimal!
+  "Saldo vencido del cargo de origen al proponerlo."
+  base: Decimal!
+  monto: Decimal!
+  estado: EstadoRecargo!
+  "SISTEMA, AGENTE o ADMIN."
+  origen: String!
+  motivo: String
+  "Cargo RECARGO creado al confirmar."
+  cargoGeneradoId: ID
+}
+
+"Resultado de confirmar un pago (F7, F8)."
+type ConfirmacionPago {
+  pago: Pago!
+  "Número correlativo del recibo emitido (F8)."
+  reciboNumero: Int!
+  "Parte del pago aplicada a cargos (F7)."
+  imputado: Decimal!
+  "Excedente de este pago que quedó como saldo a favor de la unidad (F7)."
+  saldoAFavor: Decimal!
+}
+
+"Resultado de emitir las expensas de un periodo (F3, F4)."
+type EmisionExpensas {
+  "Año-mes, ej. \"2026-11\"."
+  periodo: String!
+  presupuesto: Decimal!
+  "Fecha de vencimiento de las expensas, ISO-8601 (yyyy-MM-dd) (F4)."
+  fechaVencimiento: String!
+  "Cantidad de expensas emitidas: una por unidad activa."
+  unidades: Int!
+  "Suma de las expensas emitidas; siempre igual al presupuesto (F3)."
+  total: Decimal!
 }
 
 type PersonaCuenta {
@@ -78,6 +180,8 @@ type Pago {
   "Fecha del comprobante, ISO-8601 (yyyy-MM-dd)."
   fechaPago: String!
   estado: EstadoPago!
+  "Motivo del rechazo; solo cuando está RECHAZADO (F8)."
+  motivoRechazo: String
 }
 
 type Perfil {
