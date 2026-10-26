@@ -11,16 +11,21 @@ CREATE DATABASE gestion  OWNER gestion;
 CREATE DATABASE reservas OWNER reservas;
 CREATE DATABASE keycloak OWNER keycloak;
 CREATE DATABASE n8n      OWNER n8n;
+CREATE DATABASE reservas_test OWNER reservas;   -- solo pruebas automáticas de Reservas (nunca la de desarrollo)
 
 -- Nadie entra a una base ajena
 REVOKE ALL ON DATABASE gestion  FROM PUBLIC;
 REVOKE ALL ON DATABASE reservas FROM PUBLIC;
 REVOKE ALL ON DATABASE keycloak FROM PUBLIC;
 REVOKE ALL ON DATABASE n8n      FROM PUBLIC;
+REVOKE ALL ON DATABASE reservas_test FROM PUBLIC;
 
 -- Extensiones que necesitan superusuario (las migraciones las usan con IF NOT EXISTS)
 \connect gestion
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 \connect reservas
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+\connect reservas_test
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
