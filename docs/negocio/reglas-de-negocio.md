@@ -43,7 +43,7 @@ Los valores numéricos son **parámetros** (tabla `parametro` en Gestión o conf
 
 ### 2. Reservas
 
-- **R1.** Áreas iniciales: salón de eventos (aforo 80), piscina (aforo 20), churrasquera ×2 (aforo 15 c/u).
+- **R1.** Áreas iniciales: salón de eventos (aforo 80), piscina (aforo 20), churrasquera ×2 (aforo 15 c/u). El aforo cuenta a todas las personas (quien reserva más sus invitados) y es el límite: una reserva que lo supere se rechaza.
 - **R2.** Horario reservable 08:00–23:00. Bloques mínimos de 2 h. Dos reservas del mismo área no se solapan (validar en BD con restricción, no solo en código).
 - **R3.** Anticipación: mínimo **48 h**, máximo **60 días**. Máximo **2 reservas activas** por unidad.
 - **R4.** Una unidad **morosa con 2 o más expensas vencidas** no puede reservar. Reservas lo consulta a Gestión antes de iniciar la saga.
