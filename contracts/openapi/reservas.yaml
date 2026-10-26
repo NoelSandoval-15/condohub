@@ -7,7 +7,7 @@ info:
 
     - Solicitar una reserva inicia la **saga** (Gestión aplica cargos, Acceso emite pases); la respuesta es `202` con la reserva
       en `SOLICITADA`, y pasa a `CONFIRMADA` o `FALLIDA` cuando termina la saga (R8, S1–S3).
-    - Todo endpoint exige JWT de Keycloak. Los roles son una propuesta derivada de las reglas R1–R8: confirmar con Erick.
+    - Todo endpoint exige JWT de Keycloak. Los roles por endpoint derivan de las reglas R1–R8 (confirmados por Erick el 26/10/2026).
     - Las escrituras que pueden venir de una PWA llevan `Idempotency-Key` (UUID v4): repetir la misma clave devuelve la misma respuesta (O1–O3).
     - Los datos editables llevan `version`; una versión vieja responde `409` (O5). **No se crean reservas sin conexión** (O6).
     - Errores en `application/problem+json`; `code` es el código de la regla violada (ej. `R3`, `R4`).

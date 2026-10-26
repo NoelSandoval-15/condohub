@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "reservas.AnularCargosReserva.schema.json",
   "title": "reservas.AnularCargosReserva",
-  "description": "Compensación del paso 2 y cancelaciones (R7). Gestión crea notas de crédito; nunca borra cargos (F6). Idempotente por reservaId.",
+  "description": "Compensación del paso 2, cancelaciones (R7) y devolución de la garantía al finalizar sin daños (R6). Gestión crea notas de crédito; nunca borra cargos (F6). Idempotente por reservaId.",
   "allOf": [
     {
       "$ref": "_sobre.schema.json"
@@ -35,7 +35,7 @@
                 "TODOS",
                 "SOLO_GARANTIA"
               ],
-              "description": "TODOS: saga fallida o cancelación hasta 48 h antes. SOLO_GARANTIA: cancelación tardía, se mantiene el costo de uso (R7)"
+              "description": "TODOS: saga fallida o cancelación hasta 48 h antes. SOLO_GARANTIA: cancelación tardía, se mantiene el costo de uso (R7), o reserva finalizada sin daños, se devuelve la garantía (R6)"
             }
           }
         }

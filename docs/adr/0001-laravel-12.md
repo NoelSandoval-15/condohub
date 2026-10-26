@@ -1,7 +1,7 @@
 # ADR 0001 — Reservas usa Laravel 12 en vez de Laravel 11
 
 - **Fecha**: 14/10/2026
-- **Estado**: propuesta (pendiente de confirmación de Erick, dueño de `services/reservas`)
+- **Estado**: aceptada (confirmada por Erick, dueño de `services/reservas`, el 26/10/2026: el servicio ya funciona y se prueba con Laravel 12)
 
 ## Contexto
 
