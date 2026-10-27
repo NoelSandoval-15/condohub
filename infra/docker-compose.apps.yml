@@ -41,6 +41,7 @@ services:
       DB_DATABASE: reservas
       DB_USERNAME: reservas
       DB_PASSWORD: ${RESERVAS_DB_PASSWORD:-reservas_dev}
+      GESTION_GRAPHQL_URL: http://gateway:8000/gestion/graphql   # R4: morosidad, por el gateway (red interna)
     ports: ["8082:8082"]
 
   acceso:
