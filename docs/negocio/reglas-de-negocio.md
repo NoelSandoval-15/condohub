@@ -84,7 +84,7 @@ Orquestada desde Reservas, comunicación por RabbitMQ:
 - **O3.** El servidor guarda con escritura condicional (`attribute_not_exists(idempotency_key)` en DynamoDB, `UNIQUE` en PostgreSQL). Si la clave existe, responde **lo mismo que la primera vez** (mismo cuerpo y código).
 - **O4.** La PWA marca una operación como sincronizada solo al recibir respuesta 2xx.
 - **O5.** Datos editables (perfil, reserva) usan número de `version`; el servidor rechaza con 409 una versión vieja.
-- **O6.** Offline se permite: registrar ingresos/salidas, validar pases ya descargados, capturar comprobantes. Offline **no** se permite: confirmar pagos, crear reservas.
+- **O6.** Offline se permite: registrar ingresos/salidas, validar pases ya descargados, capturar comprobantes. Offline **no** se permite: confirmar pagos, crear reservas. Al sincronizar, el pase se evalúa a la hora del dispositivo; si un ingreso hecho sin conexión usó un pase que ya no servía (otro guardia lo usó o se revocó mientras tanto), el ingreso **se registra igual** porque ya ocurrió (A3), sin gastar el pase y con una observación para que el `ADMIN` lo revise. *(Propuesta del 27/10/2026, pendiente de confirmar con Aldana y Luis.)*
 
 ### 6. IA y datos personales
 

@@ -98,7 +98,9 @@ paths:
       tags: [Pases]
       operationId: pasesVigentesParaGuardia
       summary: Pases vigentes para cachear en la PWA del guardia
-      description: "Permite validar pases sin conexión (O6). Roles: `GUARDIA` y `ADMIN`."
+      description: |
+        Permite validar pases sin conexión (O6): los pases del día (hora local del condominio), también los ya usados o revocados,
+        para que la PWA actualice su copia. Roles: `GUARDIA` y `ADMIN`.
       parameters:
         - name: desde
           in: query
@@ -152,7 +154,9 @@ paths:
       description: |
         O1–O4: cada operación lleva su propia `Idempotency-Key` y la hora del dispositivo. El servidor responde **una entrada por operación**
         con el código HTTP que habría tenido por separado; enviar el mismo lote dos veces no duplica registros y devuelve las mismas respuestas.
-        Roles: `GUARDIA` y `ADMIN`.
+        El pase se evalúa a la hora del dispositivo (cuando ocurrió). Si un ingreso hecho sin conexión usó un pase que al sincronizar ya no
+        sirve (otro guardia lo usó, se revocó), el ingreso igual se registra porque ya ocurrió (A3), sin gastar el pase y con una `observacion`
+        para que el `ADMIN` lo revise (O6). Máximo 100 operaciones por lote. Roles: `GUARDIA` y `ADMIN`.
       requestBody:
         required: true
         content:
@@ -174,7 +178,8 @@ paths:
       operationId: listarAlertas
       summary: Alertas para el guardia
       description: |
-        I4: «visitante recurrente no registrado», generada a partir del evento `ia.VisitanteRecurrenteDetectado`.
+        I4: «visitante recurrente no registrado». Acceso las obtiene del Servicio IA (`GET /rostros/visitantes-recurrentes`, con el token del
+        guardia) y las traduce a sus propios conceptos (capa anticorrupción): la IA es la fuente de los clústeres. `desde` filtra por `creadaEn`.
         Roles: `GUARDIA` y `ADMIN`.
       parameters:
         - name: desde
@@ -189,8 +194,10 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Alerta' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
 
 components:
   parameters:
@@ -293,6 +300,7 @@ components:
             registroId: { type: string }
             horaServidor: { type: string, format: date-time }
             guardiaSub: { type: string, description: 'sub de Keycloak del guardia que lo registró' }
+            observacion: { type: string, description: 'Solo al sincronizar: el pase ya no servía y el ingreso se registró igual (O6)' }
 
     OperacionSync:
       type: object
@@ -334,7 +342,8 @@ components:
         id: { type: string }
         tipo: { type: string, enum: [VISITANTE_RECURRENTE] }
         clusterId: { type: string }
-        apariciones: { type: integer, minimum: 3 }
+        apariciones: { type: integer, minimum: 1, description: 'La regla pide 3; la demo puede bajar el mínimo (I4_MIN_APARICIONES)' }
+        diasDistintos: { type: integer, minimum: 1 }
         creadaEn: { type: string, format: date-time }
 
     Problema:
@@ -379,7 +388,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problema' }
     NoDisponible:
-      description: Un servicio del que depende (Gestión, para saber las unidades del residente) no respondió; reintentar
+      description: Un servicio del que depende (Gestión para las unidades del residente, el Servicio IA para las alertas) no respondió; reintentar
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problema' }
