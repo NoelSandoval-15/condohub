@@ -66,6 +66,7 @@ services:
       <<: *keycloak
       DYNAMODB_ENDPOINT: http://dynamodb:8000                     # tabla condohub-acceso (la crea dynamodb-init)
       GESTION_GRAPHQL_URL: http://gateway:8000/gestion/graphql   # F1: unidades del residente, por el gateway
+      IA_URL: http://gateway:8000/ia                             # I4: alertas desde el Servicio IA (capa anticorrupción)
     ports: ["3001:3001"]
 
   ia:
