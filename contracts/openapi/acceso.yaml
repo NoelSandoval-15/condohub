@@ -73,7 +73,8 @@ paths:
       description: |
         A2: un pase vencido, usado o revocado se rechaza con motivo. Responde 200 con `valido: false` y el `motivo`.
         Roles: `GUARDIA` y `ADMIN`.
-        TODO(regla): falta definir si validar **consume** el uso del pase o si lo consume el registro de ingreso (`POST /api/accesos`).
+        Validar **no consume** el pase: solo informa si sirve. El único uso (A1) lo consume el registro del ingreso con ese pase
+        (`POST /api/accesos` con `paseCodigo`), con escritura condicional (A2, decidido el 27/10/2026).
       requestBody:
         required: true
         content:
