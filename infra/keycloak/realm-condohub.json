@@ -64,6 +64,26 @@
       }
     },
     {
+      "clientId": "condohub-movil",
+      "name": "CondoHub · app móvil de portería (Flutter, rol GUARDIA)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "com.condohub.movil:/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "com.condohub.movil:/callback"
+      }
+    },
+    {
       "clientId": "condohub-servicios",
       "name": "CondoHub · llamadas entre servicios (n8n, agentes, reportes)",
       "enabled": true,
