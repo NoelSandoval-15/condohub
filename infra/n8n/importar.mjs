@@ -3,7 +3,7 @@
 // Las credenciales NO viven en el repo: se arman aquí con variables de entorno (valores de desarrollo por defecto)
 // y se importan con `n8n import:credentials`, que las cifra con N8N_ENCRYPTION_KEY.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,29 @@ function exigir(titulo, resultado) {
   return resultado.stdout;
 }
 
+// SMTP real: SMTP_* del entorno o de infra/.env (ignorado por git). Sin ellos, Mailpit.
+function variableSmtp(nombre) {
+  if (process.env[nombre] !== undefined) return process.env[nombre];
+  try {
+    const env = readFileSync(join(aqui, '..', '.env'), 'utf8');
+    const linea = env.split(/\r?\n/).find((l) => l.startsWith(`${nombre}=`));
+    return linea?.slice(nombre.length + 1).trim();
+  } catch {
+    return undefined;
+  }
+}
+const smtpReal = Boolean(variableSmtp('SMTP_HOST') && variableSmtp('SMTP_PASSWORD'));
+const smtp = smtpReal
+  ? {
+      user: variableSmtp('SMTP_USER') ?? '',
+      password: variableSmtp('SMTP_PASSWORD') ?? '',
+      host: variableSmtp('SMTP_HOST'),
+      port: Number(variableSmtp('SMTP_PORT') ?? 465),
+      secure: (variableSmtp('SMTP_SECURE') ?? 'true') === 'true',
+      disableStartTls: false,
+    }
+  : { user: '', password: '', host: 'mailpit', port: 1025, secure: false, disableStartTls: true };
+
 const credenciales = [
   {
     id: 'condohub-rabbitmq',
@@ -43,8 +66,8 @@ const credenciales = [
     id: 'condohub-smtp',
     name: 'CondoHub SMTP',
     type: 'smtp',
-    // Mailpit (buzón de pruebas del compose): sin usuario, sin TLS. Para un SMTP real, cambiar aquí o en la interfaz de n8n.
-    data: { user: '', password: '', host: 'mailpit', port: 1025, secure: false, disableStartTls: true },
+    // Por defecto Mailpit (buzón de pruebas del compose); con SMTP_HOST definido, el SMTP real (ver `smtp` arriba).
+    data: smtp,
   },
 ];
 

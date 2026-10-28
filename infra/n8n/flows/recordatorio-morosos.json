@@ -115,7 +115,7 @@
         300
       ],
       "parameters": {
-        "fromEmail": "condohub@condohub.test",
+        "fromEmail": "={{ $env.MAIL_REMITENTE || 'condohub@condohub.test' }}",
         "toEmail": "={{ $json.para }}",
         "subject": "={{ $json.asunto }}",
         "emailFormat": "text",
