@@ -47,7 +47,7 @@ Los valores numéricos son **parámetros** (tabla `parametro` en Gestión o conf
 - **R2.** Horario reservable 08:00–23:00. Bloques mínimos de 2 h. Dos reservas del mismo área no se solapan (validar en BD con restricción, no solo en código).
 - **R3.** Anticipación: mínimo **48 h**, máximo **60 días**. Máximo **2 reservas activas** por unidad.
 - **R4.** Una unidad **morosa con 2 o más expensas vencidas** no puede reservar. Reservas lo consulta a Gestión antes de iniciar la saga.
-- **R5.** El salón de eventos genera dos cargos: costo de uso y garantía. Las demás áreas solo costo de uso (puede ser 0).
+- **R5.** El salón de eventos genera dos cargos: costo de uso y garantía. Las demás áreas solo costo de uso (puede ser 0). Los cargos de una reserva vencen como el recargo (F5): el día de vencimiento (F4) del mes siguiente a su aplicación, así nunca nacen vencidos y el residente tiene tiempo de pagarlos. *(Decidido por Erick el 28/10/2026.)*
 - **R6.** La garantía se devuelve (nota de crédito) cuando el `ADMIN` marca la reserva como `FINALIZADA` sin daños.
 - **R7.** Cancelación por el residente hasta 48 h antes: se anulan los cargos. Después: se mantiene el costo de uso, se devuelve la garantía.
 - **R8.** Estados: `SOLICITADA → CONFIRMADA → FINALIZADA`, o `SOLICITADA → FALLIDA`, o `CONFIRMADA → CANCELADA`.
@@ -84,7 +84,7 @@ Orquestada desde Reservas, comunicación por RabbitMQ:
 - **O3.** El servidor guarda con escritura condicional (`attribute_not_exists(idempotency_key)` en DynamoDB, `UNIQUE` en PostgreSQL). Si la clave existe, responde **lo mismo que la primera vez** (mismo cuerpo y código).
 - **O4.** La PWA marca una operación como sincronizada solo al recibir respuesta 2xx.
 - **O5.** Datos editables (perfil, reserva) usan número de `version`; el servidor rechaza con 409 una versión vieja.
-- **O6.** Offline se permite: registrar ingresos/salidas, validar pases ya descargados, capturar comprobantes. Offline **no** se permite: confirmar pagos, crear reservas. Al sincronizar, el pase se evalúa a la hora del dispositivo; si un ingreso hecho sin conexión usó un pase que ya no servía (otro guardia lo usó o se revocó mientras tanto), el ingreso **se registra igual** porque ya ocurrió (A3), sin gastar el pase y con una observación para que el `ADMIN` lo revise. *(Propuesta del 27/10/2026, pendiente de confirmar con Aldana y Luis.)*
+- **O6.** Offline se permite: registrar ingresos/salidas, validar pases ya descargados, capturar comprobantes. Offline **no** se permite: confirmar pagos, crear reservas. Al sincronizar, el pase se evalúa a la hora del dispositivo; si un ingreso hecho sin conexión usó un pase que ya no servía (otro guardia lo usó o se revocó mientras tanto), el ingreso **se registra igual** porque ya ocurrió (A3), sin gastar el pase y con una observación para que el `ADMIN` lo revise. *(Decidido por Erick el 28/10/2026.)*
 
 ### 6. IA y datos personales
 
