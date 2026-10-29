@@ -1,0 +1,42 @@
+# CondoHub en AWS: Acceso (y su proceso de saga) con DynamoDB real, detrás de Caddy (HTTPS).
+# Se usa solo, con el .env de infra (lo hace `desplegar.sh`):
+#   docker compose --env-file ../../.env -f docker-compose.aws.yml up -d --build acceso caddy
+# Las credenciales de DynamoDB NO van en archivos: la VM tiene un rol de IAM y el SDK las obtiene sola (hop limit 2 para los contenedores).
+# Variables (infra/.env, ver aws.env.example): DOMINIO (de esta VM) y AZURE_DOMINIO (de Keycloak, el gateway y Gestión).
+
+services:
+  acceso:
+    build: ../../../services/acceso
+    image: condohub-acceso:aws
+    restart: unless-stopped
+    environment: &acceso-entorno
+      KEYCLOAK_ISSUER: https://auth.${AZURE_DOMINIO}/realms/condohub
+      KEYCLOAK_JWKS: https://auth.${AZURE_DOMINIO}/realms/condohub/protocol/openid-connect/certs
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      TABLA_ACCESO: ${TABLA_ACCESO:-condohub-acceso}
+      GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql   # F1: unidades de quien anuncia la visita
+    expose: ["3001"]
+
+  acceso-saga:                  # S3: paso 3 de la saga; necesita RabbitMQ de Azure abierto a esta VM (perfil `saga`)
+    profiles: ["saga"]
+    image: condohub-acceso:aws
+    restart: unless-stopped
+    depends_on: [acceso]
+    environment:
+      <<: *acceso-entorno
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    command: ["npm", "run", "saga"]
+
+  caddy:                        # HTTPS automático para acceso.${DOMINIO}
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [acceso]
+
+volumes:
+  caddy_data:

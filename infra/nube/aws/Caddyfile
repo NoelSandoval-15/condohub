@@ -1,0 +1,4 @@
+# Acceso detrás de HTTPS; Caddy pide y renueva el certificado solo.
+acceso.{$DOMINIO} {
+	reverse_proxy acceso:3001
+}
