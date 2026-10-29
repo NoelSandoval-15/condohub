@@ -18,6 +18,7 @@ services:
       KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
 
   gateway:
+    depends_on: !reset []                                 # en la base depende de todos los servicios; aquí los otros viven en otras nubes
     volumes:
       - ./nube/azure/generado/kong.yml:/kong/kong.yml:ro
 

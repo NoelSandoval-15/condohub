@@ -29,10 +29,11 @@ sed \
   -e "s#- http://localhost:4200#- https://admin.${DOMINIO}#" \
   gateway/kong.apps.yml > "$GEN/kong.yml"
 
-# El realm: agrega la URL pública del shell a los redirects y orígenes del cliente web.
+# El realm: agrega la URL pública del shell a los redirects, orígenes y destinos de cierre de sesión del cliente web.
 jq --arg d "$DOMINIO" '
   (.clients[] | select(.clientId == "condohub-spa")) |= (
     .redirectUris += ["https://app.\($d)/*"] | .webOrigins += ["https://app.\($d)"]
+    | .attributes["post.logout.redirect.uris"] += "##https://app.\($d)/*"
   )' keycloak/realm-condohub.json > "$GEN/realm-condohub.json"
 
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f nube/azure/docker-compose.azure.yml \
