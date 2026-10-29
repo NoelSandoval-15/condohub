@@ -5,13 +5,13 @@
 //   --maximo <n>          fotos por carpeta, repartidas por toda la carpeta (por defecto 20)
 //   --lote <n>            fotos por petición (por defecto 8)
 // El consentimiento.json trae { "fecha": "AAAA-MM-DD", "version": "..." } (el que firmó la persona; ver docs/negocio/consentimiento-facial.md).
-// Variables: KEYCLOAK_URL (http://localhost:8180), GATEWAY_PORT (8080), USUARIOS_PRUEBA_PASSWORD (Condohub123!).
+// Variables: KEYCLOAK_URL (http://localhost:8180), GATEWAY_PORT (8080) o GATEWAY_URL (un sistema desplegado), USUARIOS_PRUEBA_PASSWORD (Condohub123!).
 // Las fotos nunca se guardan en el repositorio (I6). Repetirlo AMPLÍA el perfil (TODO(regla) de CLAUDE.md de IA).
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const keycloak = process.env.KEYCLOAK_URL ?? 'http://localhost:8180';
-const gateway = `http://localhost:${process.env.GATEWAY_PORT ?? 8080}`;
+const gateway = process.env.GATEWAY_URL ?? `http://localhost:${process.env.GATEWAY_PORT ?? 8080}`;   // GATEWAY_URL apunta a un sistema desplegado (https://api.<dominio>)
 const clave = process.env.USUARIOS_PRUEBA_PASSWORD ?? 'Condohub123!';
 
 const a = Object.fromEntries(process.argv.slice(2).reduce((p, v, i, t) => (i % 2 ? p : [...p, [v.replace(/^--/, ''), t[i + 1]]]), []));
