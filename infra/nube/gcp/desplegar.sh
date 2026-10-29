@@ -37,6 +37,8 @@ chmod 600 nube/gcp/generado/s3.json
 
 cd nube/gcp
 docker compose --env-file ../../.env -f docker-compose.gcp.yml up -d --build
+# Caddy lee su archivo solo al arrancar: se reinicia para tomar los nombres nuevos (los certificados quedan en su volumen).
+docker compose --env-file ../../.env -f docker-compose.gcp.yml restart caddy
 
 echo
 echo "Listo. Comprueba (sin token responden 401, que significa que están vivos):"
