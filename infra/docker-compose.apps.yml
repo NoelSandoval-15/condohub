@@ -56,6 +56,17 @@ services:
     entrypoint: ["php", "artisan", "outbox:publicar"]
     healthcheck: { disable: true }
 
+  reservas-saga:                # S1–S3: orquestador de la saga (respuestas de Gestión y Acceso, plazos y compensaciones)
+    image: condohub-reservas:dev
+    depends_on:
+      reservas: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    environment:
+      <<: *reservas-entorno
+    entrypoint: ["php", "artisan", "saga:consumir"]
+    healthcheck: { disable: true }
+
   acceso:
     build: ../services/acceso
     image: condohub-acceso:dev
