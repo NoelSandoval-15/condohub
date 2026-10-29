@@ -1,0 +1,75 @@
+# CondoHub en Google Cloud: Reservas (con su outbox y su saga) y su Postgres, detrás de Caddy (HTTPS).
+# Se usa solo, con el .env de infra (lo hace `desplegar.sh`):
+#   docker compose --env-file ../../.env -f docker-compose.gcp.yml up -d --build
+# Variables (infra/.env, ver gcp.env.example): DOMINIO (de esta VM), AZURE_DOMINIO (Keycloak y gateway) y RABBITMQ_HOST (la VM de Azure).
+# El 5672 de RabbitMQ en Azure se abre solo a la IP de esta VM (S4: el outbox publica y la saga consume desde aquí).
+
+services:
+  postgres:                     # base propia de Reservas (ningún otro servicio la toca)
+    image: postgres:16.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ../../postgres/init:/docker-entrypoint-initdb.d:ro      # el rol y la base de reservas, con sus extensiones
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  reservas:
+    build: ../../../services/reservas
+    image: condohub-reservas:gcp
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment: &reservas-entorno
+      KEYCLOAK_ISSUER: https://auth.${AZURE_DOMINIO}/realms/condohub
+      KEYCLOAK_JWKS: https://auth.${AZURE_DOMINIO}/realms/condohub/protocol/openid-connect/certs
+      APP_KEY: ${RESERVAS_APP_KEY}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: reservas
+      DB_USERNAME: reservas
+      DB_PASSWORD: reservas_dev                                 # la que crea infra/postgres/init; la base no sale de esta VM
+      GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql   # R4 y F1: morosidad y unidad, por el gateway de Azure
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_USER: ${RABBITMQ_USER:-condohub}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-condohub}
+    expose: ["8082"]
+
+  reservas-outbox:              # S4: publica el outbox de Reservas en RabbitMQ (misma imagen)
+    image: condohub-reservas:gcp
+    restart: unless-stopped
+    depends_on:
+      reservas: { condition: service_healthy }
+    environment: *reservas-entorno
+    entrypoint: ["php", "artisan", "outbox:publicar"]
+    healthcheck: { disable: true }
+
+  reservas-saga:                # S1–S3: orquestador de la saga (misma imagen)
+    image: condohub-reservas:gcp
+    restart: unless-stopped
+    depends_on:
+      reservas: { condition: service_healthy }
+    environment: *reservas-entorno
+    entrypoint: ["php", "artisan", "saga:consumir"]
+    healthcheck: { disable: true }
+
+  caddy:                        # HTTPS automático para reservas.${DOMINIO}
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [reservas]
+
+volumes:
+  pg_data:
+  caddy_data:
