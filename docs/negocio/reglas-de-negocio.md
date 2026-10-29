@@ -49,7 +49,7 @@ Los valores numéricos son **parámetros** (tabla `parametro` en Gestión o conf
 - **R4.** Una unidad **morosa con 2 o más expensas vencidas** no puede reservar. Reservas lo consulta a Gestión antes de iniciar la saga.
 - **R5.** El salón de eventos genera dos cargos: costo de uso y garantía. Las demás áreas solo costo de uso (puede ser 0). Los cargos de una reserva vencen como el recargo (F5): el día de vencimiento (F4) del mes siguiente a su aplicación, así nunca nacen vencidos y el residente tiene tiempo de pagarlos. *(Decidido por Erick el 28/10/2026.)*
 - **R6.** La garantía se devuelve (nota de crédito) cuando el `ADMIN` marca la reserva como `FINALIZADA` sin daños.
-- **R7.** Cancelación por el residente hasta 48 h antes: se anulan los cargos. Después: se mantiene el costo de uso, se devuelve la garantía.
+- **R7.** Cancelación por el residente hasta 48 h antes: se anulan los cargos. Después: se mantiene el costo de uso, se devuelve la garantía. En ambos casos se revocan los pases QR de los invitados (A2). *(Revocación decidida por Erick el 29/10/2026.)*
 - **R8.** Estados: `SOLICITADA → CONFIRMADA → FINALIZADA`, o `SOLICITADA → FALLIDA`, o `CONFIRMADA → CANCELADA`.
 
 ### 3. Saga de reserva (transacción distribuida)
