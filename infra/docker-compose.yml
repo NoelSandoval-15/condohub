@@ -143,10 +143,13 @@ services:
       # Flujos que llaman a Gestión: token del cliente de servicios (Keycloak) y moneda del condominio (F10)
       CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
       MONEDA: ${MONEDA:-BOB}
+      # Push al guardia (FCM): el flujo firma el token de la cuenta de servicio con fs y crypto; la clave vive en infra/secrets (fuera de git)
+      NODE_FUNCTION_ALLOW_BUILTIN: fs,crypto
     ports: ["5678:5678"]
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n/flows:/flows:ro                          # flujos exportados; se cargan con `node infra/n8n/importar.mjs`
+      - ./secrets:/secrets:ro                          # firebase-sa.json (no se sube a git)
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz || exit 1"]
       interval: 10s

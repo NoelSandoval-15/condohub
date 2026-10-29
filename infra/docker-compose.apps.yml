@@ -56,6 +56,17 @@ services:
     entrypoint: ["php", "artisan", "outbox:publicar"]
     healthcheck: { disable: true }
 
+  reservas-saga:                # S1–S3: orquestador de la saga (respuestas de Gestión y Acceso, plazos y compensaciones)
+    image: condohub-reservas:dev
+    depends_on:
+      reservas: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    environment:
+      <<: *reservas-entorno
+    entrypoint: ["php", "artisan", "saga:consumir"]
+    healthcheck: { disable: true }
+
   acceso:
     build: ../services/acceso
     image: condohub-acceso:dev
@@ -64,7 +75,22 @@ services:
       dynamodb-init: { condition: service_completed_successfully }
     environment:
       <<: *keycloak
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      GESTION_GRAPHQL_URL: http://gateway:8000/gestion/graphql   # F1: unidades de quien anuncia la visita, por el gateway interno
     ports: ["3001:3001"]
+
+  acceso-saga:                  # S3: paso 3 de la saga (emitir y revocar los pases de los invitados) y relevo del stream (S4)
+    image: condohub-acceso:dev
+    depends_on:
+      acceso: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      RABBITMQ_URL: amqp://condohub:condohub@rabbitmq:5672/%2F
+    command: ["npm", "run", "saga"]
+    healthcheck: { disable: true }
 
   ia:
     build: ../services/ia

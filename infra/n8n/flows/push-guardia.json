@@ -1,0 +1,129 @@
+{
+  "id": "pushGuardia01",
+  "name": "Push al guardia",
+  "active": false,
+  "nodes": [
+    {
+      "id": "p1",
+      "name": "Aviso push",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "condohub-push-guardia",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "push-guardia",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "id": "p2",
+      "name": "Pedir token a Google",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Pide a Google un token para FCM con la cuenta de servicio (clave en /secrets, fuera de git).\nconst fs = require('fs');\nconst crypto = require('crypto');\nconst sa = JSON.parse(fs.readFileSync($env.FIREBASE_SA_ARCHIVO || '/secrets/firebase-sa.json', 'utf8'));\nconst entrada = $input.first().json.body || {};\nif (!entrada.titulo) throw new Error('Falta el titulo del aviso');\nconst ahora = Math.floor(Date.now() / 1000);\nconst b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');\nconst cabecera = b64({ alg: 'RS256', typ: 'JWT' });\nconst cuerpo = b64({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', iat: ahora, exp: ahora + 3600 });\nconst firma = crypto.createSign('RSA-SHA256').update(cabecera + '.' + cuerpo).sign(sa.private_key).toString('base64url');\nreturn [{ json: { assertion: cabecera + '.' + cuerpo + '.' + firma, projectId: sa.project_id, titulo: String(entrada.titulo), cuerpo: String(entrada.cuerpo || ''), tema: String(entrada.tema || 'guardia') } }];"
+      }
+    },
+    {
+      "id": "p3",
+      "name": "Obtener access token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "urn:ietf:params:oauth:grant-type:jwt-bearer"
+            },
+            {
+              "name": "assertion",
+              "value": "={{ $('Pedir token a Google').first().json.assertion }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "p4",
+      "name": "Enviar a FCM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://fcm.googleapis.com/v1/projects/{{ $('Pedir token a Google').first().json.projectId }}/messages:send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { topic: $('Pedir token a Google').first().json.tema, notification: { title: $('Pedir token a Google').first().json.titulo, body: $('Pedir token a Google').first().json.cuerpo }, android: { priority: 'HIGH' } } }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Aviso push": {
+      "main": [
+        [
+          {
+            "node": "Pedir token a Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir token a Google": {
+      "main": [
+        [
+          {
+            "node": "Obtener access token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener access token": {
+      "main": [
+        [
+          {
+            "node": "Enviar a FCM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  }
+}

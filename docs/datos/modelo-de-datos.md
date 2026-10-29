@@ -85,7 +85,9 @@ erDiagram
 | Registro de acceso | `DIA#<fecha>` | `ACCESO#<ts>#<id>` | | `UNIDAD#<codigo>` / `ACCESO#<ts>` | `horaDispositivo`, `horaServidor`, `idempotencyKey` |
 | Vehículo de residente | `PLACA#<placa>` | `META` | `UNIDAD#<codigo>` / `PLACA#<placa>` | | |
 | Idempotencia | `IDEM#<uuid>` | `META` | | | respuesta original, `expiraEn` (TTL 7 días) |
-| Evento procesado | `EVT#<eventId>` | `META` | | | `expiraEn` |
+| Evento procesado | `EVT#<eventId>` | `META` | | | `expiraEn`; en un comando de la saga, también su respuesta (`mensaje`, `routingKey`) |
+| Pases de una reserva | `RESERVA#<reservaId>` | `META` | | | `estado` (`EMITIDA`/`REVOCADA`), `pases` (invitado → código) |
+| Cursor del relevo | `RELEVO#<fragmento>` | `META` | | | `secuencia`: último registro del stream ya publicado |
 | Alerta | `ALERTAS#<fecha>` | `ALERTA#<ts>#<id>` | | | tipo, clusterId |
 
 Patrones de acceso: pases vigentes del día para la PWA (GSI1 `PASES#<fecha>`), validar un QR (`PASE#<codigo>`), bitácora del día (`DIA#<fecha>`), historial de una unidad (GSI2), reconocer una placa (`PLACA#<placa>`).
@@ -95,7 +97,7 @@ Patrones de acceso: pases vigentes del día para la PWA (GSI1 `PASES#<fecha>`), 
 | O3 | `TransactWriteItems`: `IDEM#<uuid>` con `attribute_not_exists(PK)` + el registro; si falla la condición, se devuelve la respuesta guardada |
 | A1/A2 | Usar un pase = `UpdateItem` con condición `usos < usosMaximos AND estado = VIGENTE` |
 | A3 | Los registros solo se insertan (`attribute_not_exists`); la app no tiene operación de edición |
-| S4 | DynamoDB Streams (`NEW_IMAGE`) publica `AccesoRegistrado` y `PaseEmitido` (equivale al outbox) |
+| S4 | DynamoDB Streams (`NEW_IMAGE`) publica `AccesoRegistrado` y `PaseEmitido` (equivale al outbox): la respuesta de la saga se guarda en el mismo ítem `EVT#` que marca el comando atendido y el relevo la publica desde el stream |
 
 ## 4. IA (MongoDB `ia`)
 

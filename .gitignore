@@ -19,3 +19,6 @@ frontends/*/
 .DS_Store
 Thumbs.db
 *.log
+
+# Credenciales de Firebase (FCM): nunca a git
+infra/secrets/
