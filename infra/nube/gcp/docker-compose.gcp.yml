@@ -43,6 +43,7 @@ services:
 
   reservas-outbox:              # S4: publica el outbox de Reservas en RabbitMQ (misma imagen)
     image: condohub-reservas:gcp
+    pull_policy: never          # la imagen la construye `reservas`; no existe en ningún registro
     restart: unless-stopped
     depends_on:
       reservas: { condition: service_healthy }
@@ -52,6 +53,7 @@ services:
 
   reservas-saga:                # S1–S3: orquestador de la saga (misma imagen)
     image: condohub-reservas:gcp
+    pull_policy: never
     restart: unless-stopped
     depends_on:
       reservas: { condition: service_healthy }
