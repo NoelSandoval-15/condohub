@@ -4,11 +4,11 @@
 //   --password <clave>   opcional; por defecto USUARIOS_PRUEBA_PASSWORD (Condohub123!)
 //   --persona <uuid>     opcional; id de la persona en Gestión (lo da `miPerfil` o la consola del ADMIN)
 // Variables opcionales: KEYCLOAK_URL (http://localhost:8180), KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD (admin/admin),
-//   GATEWAY_PORT (8080), USUARIOS_PRUEBA_PASSWORD. Es idempotente: repetirlo no duplica la cuenta ni el enlace.
+//   GATEWAY_PORT (8080) o GATEWAY_URL (un sistema desplegado), USUARIOS_PRUEBA_PASSWORD. Es idempotente: repetirlo no duplica la cuenta ni el enlace.
 // Solo desarrollo: el usuario de Gestión que enlaza es admin@condohub.test.
 
 const keycloak = process.env.KEYCLOAK_URL ?? 'http://localhost:8180';
-const gateway = `http://localhost:${process.env.GATEWAY_PORT ?? 8080}`;
+const gateway = process.env.GATEWAY_URL ?? `http://localhost:${process.env.GATEWAY_PORT ?? 8080}`;   // GATEWAY_URL apunta a un sistema desplegado (https://api.<dominio>)
 const realm = 'condohub';
 const ROLES = ['ADMIN', 'RESIDENTE', 'GUARDIA'];
 
