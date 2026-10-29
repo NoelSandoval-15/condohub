@@ -1,0 +1,234 @@
+{
+  "id": "informeMensual01",
+  "name": "Informe mensual",
+  "active": false,
+  "nodes": [
+    {
+      "id": "i01-dia-1",
+      "name": "El día 1 a las 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "i02-a-mano",
+      "name": "Ejecutar a mano",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "i03-token",
+      "name": "Pedir token de servicio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://keycloak:8080/realms/condohub/protocol/openid-connect/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "condohub-servicios"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $env.CONDOHUB_SERVICIOS_SECRET }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "i04-morosos",
+      "name": "Consultar morosos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://gateway:8000/gestion/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Pedir token de servicio').first().json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"query\":\"{ morosos { unidadId codigo bloque deudaVencida expensasVencidas } }\"}"
+      }
+    },
+    {
+      "id": "i05-pagos",
+      "name": "Consultar pagos pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://gateway:8000/gestion/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Pedir token de servicio').first().json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"query\":\"{ pagosPendientes { id unidadId monto estado } }\"}"
+      }
+    },
+    {
+      "id": "i06-armar",
+      "name": "Armar informe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Informe mensual para el ADMIN: solo lee y resume (F5, G2: no crea cargos ni mueve dinero).\n// El dinero se suma en centavos enteros (F10): nunca con float.\nconst cent = (s) => { const [e, d = ''] = String(s).split('.'); return BigInt(e) * 100n + BigInt((d + '00').slice(0, 2)); };\nconst fmt = (c) => (c / 100n) + '.' + String(c % 100n).padStart(2, '0');\nconst morosos = $('Consultar morosos').first().json;\nconst pagos = $('Consultar pagos pendientes').first().json;\nfor (const r of [morosos, pagos]) if (r.errors) throw new Error('Gestión respondió con error: ' + JSON.stringify(r.errors[0]));\nconst lista = morosos.data.morosos || [];\nconst pendientes = pagos.data.pagosPendientes || [];\nconst porBloque = {};\nlet total = 0n;\nfor (const m of lista) {\n  const d = cent(m.deudaVencida);\n  total += d;\n  const b = (porBloque[m.bloque] ||= { unidades: 0, deuda: 0n });\n  b.unidades += 1;\n  b.deuda += d;\n}\nconst moneda = $env.MONEDA || 'BOB';\nconst filas = Object.keys(porBloque).sort().map((k) => '  Bloque ' + k + ': ' + porBloque[k].unidades + ' unidades, ' + fmt(porBloque[k].deuda) + ' ' + moneda);\nconst enPendientes = pendientes.reduce((s, p) => s + cent(p.monto), 0n);\nconst mes = new Date().toLocaleDateString('es-BO', { month: 'long', year: 'numeric', timeZone: 'America/La_Paz' });\nconst detalle = filas.length ? 'Por bloque:\\n' + filas.join('\\n') : 'Ninguna unidad morosa.';\nreturn [{ json: {\n  para: $env.ADMIN_EMAIL,\n  asunto: 'Informe mensual de CondoHub · ' + mes,\n  texto: 'Informe mensual (' + mes + ')\\n\\nMorosidad\\n  Unidades morosas: ' + lista.length +\n    '\\n  Deuda vencida total: ' + fmt(total) + ' ' + moneda + '\\n' + detalle +\n    '\\n\\nPagos por conciliar (F8)\\n  Pendientes: ' + pendientes.length + ' por ' + fmt(enPendientes) + ' ' + moneda +\n    '\\n\\nEste informe solo resume: no aplica recargos ni confirma pagos.\\n\\nCondoHub',\n} }];"
+      }
+    },
+    {
+      "id": "i07-correo",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "={{ $env.MAIL_REMITENTE || 'condohub@condohub.test' }}",
+        "toEmail": "={{ $json.para }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "condohub-smtp",
+          "name": "CondoHub SMTP"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "El día 1 a las 08:00": {
+      "main": [
+        [
+          {
+            "node": "Pedir token de servicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar a mano": {
+      "main": [
+        [
+          {
+            "node": "Pedir token de servicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir token de servicio": {
+      "main": [
+        [
+          {
+            "node": "Consultar morosos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar morosos": {
+      "main": [
+        [
+          {
+            "node": "Consultar pagos pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pagos pendientes": {
+      "main": [
+        [
+          {
+            "node": "Armar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar informe": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  }
+}

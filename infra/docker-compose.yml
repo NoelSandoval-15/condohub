@@ -138,6 +138,7 @@ services:
       # mientras Gestión no exponga los contactos por GraphQL; sin entrada, el aviso va al ADMIN.
       GUARDIA_EMAIL: ${GUARDIA_EMAIL:-guardia@condohub.test}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@condohub.test}
+      MAIL_REMITENTE: ${MAIL_REMITENTE:-condohub@condohub.test}      # From de los correos; con Gmail debe ser la cuenta del SMTP
       CONTACTOS_UNIDADES: ${CONTACTOS_UNIDADES:-}
       # Flujos que llaman a Gestión: token del cliente de servicios (Keycloak) y moneda del condominio (F10)
       CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
