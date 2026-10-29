@@ -22,3 +22,6 @@ Thumbs.db
 
 # Credenciales de Firebase (FCM): nunca a git
 infra/secrets/
+
+# Archivos que genera infra/nube/*/desplegar.sh con las URL públicas (no se versionan)
+infra/nube/*/generado/

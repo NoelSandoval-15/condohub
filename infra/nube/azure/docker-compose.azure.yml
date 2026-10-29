@@ -1,0 +1,59 @@
+# CondoHub en Azure: Keycloak, gateway, Gestión (con su Postgres), RabbitMQ y los frontends estáticos, detrás de Caddy (HTTPS).
+# Se usa como tercer archivo, sobre los dos de siempre (lo hace `desplegar.sh`):
+#   docker compose -f docker-compose.yml -f docker-compose.apps.yml -f nube/azure/docker-compose.azure.yml up -d --build <servicios>
+# Variables (infra/.env, ver azure.env.example): DOMINIO (p. ej. 20-1-2-3.sslip.io). Los puertos publicados por los otros
+# archivos no se alcanzan desde internet: el grupo de seguridad de la VM solo deja pasar 22, 80 y 443.
+# Los archivos de `generado/` los crea `desplegar.sh` (realm con las URL públicas y kong con los upstreams de otras nubes).
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://auth.${DOMINIO}              # el `iss` de los tokens es siempre este nombre público
+      KC_PROXY_HEADERS: xforwarded                       # Caddy termina el TLS
+    volumes:
+      - ./nube/azure/generado/realm-condohub.json:/opt/keycloak/data/import/realm-condohub.json:ro
+
+  gestion:
+    environment:
+      KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
+
+  gateway:
+    volumes:
+      - ./nube/azure/generado/kong.yml:/kong/kong.yml:ro
+
+  shell:
+    build:
+      args:
+        VITE_KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
+        VITE_REMOTE_ADMIN: https://admin.${DOMINIO}/remoteEntry.js
+        VITE_REMOTE_RESIDENTE: https://residente.${DOMINIO}/assets/remoteEntry.js
+        VITE_REMOTE_GUARDIA: https://guardia.${DOMINIO}/assets/remoteEntry.js
+
+  admin:
+    build:
+      args:
+        VITE_GATEWAY_URL: https://api.${DOMINIO}
+
+  residente:
+    build:
+      args:
+        VITE_GATEWAY_URL: https://api.${DOMINIO}
+
+  guardia:
+    build:
+      args:
+        VITE_GATEWAY_URL: https://api.${DOMINIO}
+
+  caddy:                        # HTTPS automático (Let's Encrypt) para los nombres <servicio>.${DOMINIO}
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./nube/azure/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [keycloak, gateway, shell, admin, residente, guardia]
+
+volumes:
+  caddy_data:

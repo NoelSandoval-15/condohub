@@ -1,0 +1,26 @@
+# Un nombre por servicio bajo el mismo dominio; Caddy pide y renueva el certificado solo.
+# El CORS de los remotos (admin, residente, guardia) ya lo pone el nginx de cada uno.
+
+auth.{$DOMINIO} {
+	reverse_proxy keycloak:8080
+}
+
+api.{$DOMINIO} {
+	reverse_proxy gateway:8000
+}
+
+app.{$DOMINIO} {
+	reverse_proxy shell:80
+}
+
+admin.{$DOMINIO} {
+	reverse_proxy admin:80
+}
+
+residente.{$DOMINIO} {
+	reverse_proxy residente:80
+}
+
+guardia.{$DOMINIO} {
+	reverse_proxy guardia:80
+}
