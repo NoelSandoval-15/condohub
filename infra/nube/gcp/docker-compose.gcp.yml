@@ -1,8 +1,13 @@
-# CondoHub en Google Cloud: Reservas (con su outbox y su saga) y su Postgres, detrás de Caddy (HTTPS).
-# Se usa solo, con el .env de infra (lo hace `desplegar.sh`):
+# CondoHub en Google Cloud: Reservas (con su outbox y su saga y su Postgres), Servicio IA (con Mongo y el almacén S3) y Agentes,
+# detrás de Caddy (HTTPS). Se usa solo, con el .env de infra (lo hace `desplegar.sh`):
 #   docker compose --env-file ../../.env -f docker-compose.gcp.yml up -d --build
 # Variables (infra/.env, ver gcp.env.example): DOMINIO (de esta VM), AZURE_DOMINIO (Keycloak y gateway) y RABBITMQ_HOST (la VM de Azure).
 # El 5672 de RabbitMQ en Azure se abre solo a la IP de esta VM (S4: el outbox publica y la saga consume desde aquí).
+# El almacén S3 no sale de esta VM: sus claves se generan al crear el .env (no son las de desarrollo del repo).
+
+x-keycloak: &keycloak
+  KEYCLOAK_ISSUER: https://auth.${AZURE_DOMINIO}/realms/condohub
+  KEYCLOAK_JWKS: https://auth.${AZURE_DOMINIO}/realms/condohub/protocol/openid-connect/certs
 
 services:
   postgres:                     # base propia de Reservas (ningún otro servicio la toca)
@@ -26,8 +31,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment: &reservas-entorno
-      KEYCLOAK_ISSUER: https://auth.${AZURE_DOMINIO}/realms/condohub
-      KEYCLOAK_JWKS: https://auth.${AZURE_DOMINIO}/realms/condohub/protocol/openid-connect/certs
+      <<: *keycloak
       APP_KEY: ${RESERVAS_APP_KEY}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -61,7 +65,111 @@ services:
     entrypoint: ["php", "artisan", "saga:consumir"]
     healthcheck: { disable: true }
 
-  caddy:                        # HTTPS automático para reservas.${DOMINIO}
+  mongo:                        # bases `ia` y `agentes` (una por servicio); los scripts crean colecciones e índices
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+      - ../../../services/ia/db/mongo-init.js:/docker-entrypoint-initdb.d/01-ia.js:ro
+      - ../../../services/agentes/db/mongo-init.js:/docker-entrypoint-initdb.d/02-agentes.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      retries: 10
+
+  minio:                        # almacén S3 de fotos, reportes y modelos (hoy SeaweedFS: docs/adr/0002-almacen-s3.md)
+    image: chrislusf/seaweedfs:3.85
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=9000", "-s3.config=/etc/seaweedfs/s3.json", "-ip=minio", "-ip.bind=0.0.0.0"]
+    volumes:
+      - minio_data:/data
+      - ./generado/s3.json:/etc/seaweedfs/s3.json:ro            # claves al azar de `desplegar.sh`
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ia:
+    build: ../../../services/ia
+    image: condohub-ia:gcp
+    restart: unless-stopped
+    depends_on:
+      mongo: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment: &ia-entorno
+      <<: *keycloak
+      PERSISTENCIA: mongo
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: ia
+      ALMACEN_FOTOS: s3
+      ALMACEN_REPORTES: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-condohub}:${RABBITMQ_PASSWORD:-condohub}@${RABBITMQ_HOST}:5672/%2F
+      MODELO_FACIAL: facenet
+      TORCH_HOME: /models/torch                          # pesos de FaceNet: se descargan una vez y quedan en el volumen
+      MODELO_PLACAS_FICHA: /modelos/modelo_placas.json
+      MODELO_LECTURA_FICHA: /modelos/ficha_reconocedor.json
+      LECTOR_PLACAS: onnx                                # POST /placas/leer: detector + lector global (.onnx subidos a ~/condohub/services/ia/modelos)
+      LECTOR_PLACAS_DETECTOR: /modelos/yolov8n_placas_int8.onnx
+      LECTOR_PLACAS_MODELO: /modelos/cct_xs_v2_global.onnx
+      GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql
+      LLM_PROVEEDOR: ${LLM_PROVEEDOR:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+    volumes:
+      - ia_modelos:/models                               # caché de Whisper y de FaceNet (se descargan la primera vez)
+      - ../../../services/ia/modelos:/modelos:ro         # fichas (en git) y .onnx (del equipo, no van a git: I6)
+    expose: ["8083"]
+
+  ia-agrupamiento:              # I4: DBSCAN nocturno (02:00 hora de La Paz) con la misma imagen que ia
+    image: condohub-ia:gcp
+    pull_policy: never
+    restart: unless-stopped
+    depends_on: [ia]
+    environment:
+      <<: *ia-entorno
+      TZ: America/La_Paz
+      I4_CADA_SEGUNDOS: ${I4_CADA_SEGUNDOS:-}
+      I4_MIN_APARICIONES: ${I4_MIN_APARICIONES:-3}
+      I4_MIN_DIAS: ${I4_MIN_DIAS:-3}
+      I4_REAVISO_CADA: ${I4_REAVISO_CADA:-0}
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          if [ -n "$I4_CADA_SEGUNDOS" ]; then
+            sleep "$I4_CADA_SEGUNDOS"
+          else
+            ahora=$(date +%s); proxima=$(date -d "02:00" +%s)
+            [ "$proxima" -le "$ahora" ] && proxima=$(date -d "tomorrow 02:00" +%s)
+            sleep $((proxima - ahora))
+          fi
+          python -m app.jobs.agrupar_desconocidos || echo "el job de I4 falló; se reintenta mañana"
+        done
+
+  agentes:                      # misiones (G1–G3) y monitoreo (G5); servidor MCP
+    build: ../../../services/agentes
+    image: condohub-agentes:gcp
+    restart: unless-stopped
+    depends_on:
+      mongo: { condition: service_healthy }
+    environment:
+      <<: *keycloak
+      PERSISTENCIA: mongo
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: agentes
+      GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql
+      CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-}   # el mismo del realm de Azure (cliente condohub-servicios)
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      N8N_WEBHOOK_ALERTAS: ${N8N_WEBHOOK_ALERTAS:-}
+      N8N_WEBHOOK_RECORDATORIOS: ${N8N_WEBHOOK_RECORDATORIOS:-}
+    expose: ["8084"]
+
+  caddy:                        # HTTPS automático para reservas., ia. y agentes. de ${DOMINIO}
     image: caddy:2.8
     restart: unless-stopped
     ports: ["80:80", "443:443"]
@@ -70,8 +178,11 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [reservas]
+    depends_on: [reservas, ia, agentes]
 
 volumes:
   pg_data:
+  mongo_data:
+  minio_data:
+  ia_modelos:
   caddy_data:

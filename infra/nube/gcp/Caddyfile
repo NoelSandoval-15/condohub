@@ -1,4 +1,13 @@
-# Reservas detrás de HTTPS; Caddy pide y renueva el certificado solo.
+# Un nombre por servicio bajo el mismo dominio; Caddy pide y renueva el certificado solo.
+
 reservas.{$DOMINIO} {
 	reverse_proxy reservas:8082
+}
+
+ia.{$DOMINIO} {
+	reverse_proxy ia:8083
+}
+
+agentes.{$DOMINIO} {
+	reverse_proxy agentes:8084
 }
