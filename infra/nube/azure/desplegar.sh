@@ -39,5 +39,8 @@ jq --arg d "$DOMINIO" '
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f nube/azure/docker-compose.azure.yml \
   up -d --build postgres rabbitmq keycloak gestion gateway shell admin residente guardia caddy
 
+# Kong (modo sin base de datos) lee su archivo solo al arrancar: se reinicia para tomar las URL de las otras nubes.
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f nube/azure/docker-compose.azure.yml restart gateway
+
 echo
 echo "Listo. Comprueba: https://auth.${DOMINIO}/realms/condohub  y  https://app.${DOMINIO}"
