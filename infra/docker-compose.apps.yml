@@ -160,8 +160,19 @@ services:
     image: condohub-agentes:dev
     depends_on:
       keycloak: { condition: service_healthy }
+      mongo: { condition: service_healthy }
     environment:
       <<: *keycloak
+      PERSISTENCIA: mongo
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: agentes
+      GESTION_GRAPHQL_URL: http://gestion:8081/graphql
+      KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/condohub/protocol/openid-connect/token   # cuenta de servicio (client_credentials)
+      CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}                      # misiones con LLM (G1); sin clave, POST /misiones responde 503
+      GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}     # el 20b agota sus tokens razonando y devuelve vacío (finish_reason=length)
+      N8N_WEBHOOK_ALERTAS: http://n8n:5678/webhook/agente-alertas
+      N8N_WEBHOOK_RECORDATORIOS: http://n8n:5678/webhook/agente-recordatorio
     ports: ["8084:8084"]
 
   shell:
