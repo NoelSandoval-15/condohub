@@ -409,6 +409,21 @@ components:
         consultaGraphql: { type: string, description: 'Consulta de solo lectura que armó el LLM (G4)' }
         archivoUrl: { type: string, format: uri, description: 'URL firmada y temporal; solo con `estado = LISTO`' }
         motivoFallo: { type: string, description: 'Solo con `estado = FALLIDO`' }
+        vistaPrevia:
+          type: object
+          description: |
+            Primeras filas del resultado, para verlas en pantalla antes de descargar el archivo (G4: el reporte se visualiza y se exporta).
+            Solo con `estado = LISTO`. Cada fila es un arreglo alineado con `columnas`; los valores se entregan como texto (el dinero conserva su
+            forma decimal, F10) y `null` donde no hay dato.
+          required: [columnas, filas, total]
+          properties:
+            columnas: { type: array, items: { type: string } }
+            filas:
+              type: array
+              items:
+                type: array
+                items: { type: string, nullable: true }
+            total: { type: integer, minimum: 0, description: 'Filas del resultado completo (puede ser mayor que las que se muestran)' }
 
     Problema:
       type: object
