@@ -179,10 +179,11 @@ services:
     restart: unless-stopped
     environment:
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      N8N_HOST: n8n
+      N8N_HOST: n8n.${DOMINIO}
       N8N_PORT: "5678"
-      N8N_PROTOCOL: http
-      WEBHOOK_URL: http://n8n:5678/
+      N8N_PROTOCOL: https
+      N8N_PROXY_HOPS: "1"                               # detrás de Caddy
+      WEBHOOK_URL: https://n8n.${DOMINIO}/
       GENERIC_TIMEZONE: America/La_Paz
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
@@ -204,16 +205,18 @@ services:
       timeout: 5s
       retries: 10
 
-  caddy:                        # HTTPS automático para reservas., ia. y agentes. de ${DOMINIO}
+  caddy:                        # HTTPS automático para reservas., ia., agentes., almacen. y n8n. de ${DOMINIO}
     image: caddy:2.8
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      DOMINIO: ${DOMINIO}
+      - DOMINIO=${DOMINIO}
+      - N8N_BASIC_USER      # sin definir en infra/.env no se pasan: el Caddyfile usa su valor cerrado por defecto
+      - N8N_BASIC_HASH
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [reservas, ia, agentes, minio]
+    depends_on: [reservas, ia, agentes, minio, n8n]
 
 volumes:
   pg_data:

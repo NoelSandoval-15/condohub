@@ -14,6 +14,24 @@ agentes.{$DOMINIO} {
 
 # Descarga de reportes: el navegador abre la URL firmada (G4) contra este nombre. Solo se expone la carpeta de reportes;
 # fotos y modelos quedan sin camino público. Caddy conserva el Host, que forma parte de la firma.
+# Editor de n8n. Los webhooks NO se publican (el del push no tiene autenticación: cualquiera podría mandar avisos falsos a los guardias);
+# Agentes y los flujos los llaman por dentro. Contraseña de Caddy ANTES de la cuenta de n8n. Sin N8N_BASIC_HASH en infra/.env,
+# el valor por defecto es el hash de una clave aleatoria que nadie conoce: la ruta queda cerrada, no abierta.
+n8n.{$DOMINIO} {
+	handle /webhook/* {
+		respond "No encontrado" 404
+	}
+	handle /webhook-test/* {
+		respond "No encontrado" 404
+	}
+	handle {
+		basic_auth {
+			{$N8N_BASIC_USER:cerrado} {$N8N_BASIC_HASH:$2a$14$wzEmOpxo1Fc/BeV9zFUgUOIXmxARVeGRrK4.uLRbjWt8XBqmxV3iq}
+		}
+		reverse_proxy n8n:5678
+	}
+}
+
 almacen.{$DOMINIO} {
 	# handle es excluyente y respeta este orden; un `respond` suelto se evaluaría ANTES que el proxy.
 	handle /reportes/* {
