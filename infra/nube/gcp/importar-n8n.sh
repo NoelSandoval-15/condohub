@@ -33,7 +33,8 @@ for f in n8n/flows/*.json; do
       -e "s#http://gateway:8000#https://api.${AZURE_DOMINIO}#g" "$f" > "$TMP/flows/$(basename "$f")"
 done
 
-"${DC[@]}" up -d n8n
+# --wait: el primer arranque migra la base de n8n; importar a la vez la corrompe («index already exists»).
+"${DC[@]}" up -d --wait n8n
 "${DC[@]}" cp "$TMP/credenciales.json" n8n:/tmp/credenciales.json
 "${DC[@]}" cp "$TMP/flows" n8n:/tmp/flows
 "${DC[@]}" exec -T n8n n8n import:credentials --input=/tmp/credenciales.json
