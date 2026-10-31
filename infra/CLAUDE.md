@@ -153,6 +153,10 @@ Google Cloud (`infra/nube/gcp/`): **Reservas con su outbox, su saga y su Postgre
 
 Cada repo tiene `.github/workflows/ci.yml`: pruebas (lo mismo que se corre a mano; ver el `CLAUDE.md` del repo) en cada PR y push a `main`, y luego la imagen Docker, que se **publica en GHCR** (`ghcr.io/<cuenta>/<repo>:latest` y `:<sha>`) solo en push a `main`. La raíz tiene `contratos.yml`: valida el esquema GraphQL, los 14 esquemas de eventos, el lint de OpenAPI, el compose y los JSON de n8n, Keycloak y RabbitMQ. Los workflows se validaron con `actionlint`. El CI de IA instala sin PyTorch (los tests usan dobles; el modelo real se valida en Colab). Fuera del espacio de trabajo completo, los tests de contrato de cada servicio se omiten solos.
 
+## Cambiar los frontends entre local y producción
+
+Un solo lugar: `infra/.env` (no va a git). Deja activa una de las dos líneas `ENTORNO=local` / `ENTORNO=produccion`, con `DOMINIO_PRODUCCION` (el dominio `sslip.io` de la VM de Azure), y corre `node infra/entorno.mjs` (o `node infra/entorno.mjs produccion`). Reescribe los `.env` de `shell`, `admin`, `residente` y `guardia` (cada uno trae el bloque activo y el otro comentado) e imprime los `--dart-define` de la app móvil, que no usa `.env`. Después reinicia `npm run dev` o vuelve a compilar. El shell y los remotos deben ser siempre del mismo entorno: el `iss` de los tokens tiene que coincidir con el de los servicios. Los frontends solo hablan con el gateway de Azure (`api.<dominio>`); él reenvía a AWS y GCP.
+
 ## Comandos
 
 ```bash
