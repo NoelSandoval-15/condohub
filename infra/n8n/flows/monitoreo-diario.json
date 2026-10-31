@@ -1,0 +1,74 @@
+{
+  "id": "monitoreoDiario01",
+  "name": "Monitoreo diario del agente",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }] } },
+      "id": "mon-0001",
+      "name": "Cada día a las 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 200]
+    },
+    {
+      "parameters": {},
+      "id": "mon-0002",
+      "name": "Ejecutar a mano",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://keycloak:8080/realms/condohub/protocol/openid-connect/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "grant_type", "value": "client_credentials" },
+            { "name": "client_id", "value": "condohub-servicios" },
+            { "name": "client_secret", "value": "={{ $env.CONDOHUB_SERVICIOS_SECRET }}" }
+          ]
+        }
+      },
+      "id": "mon-0003",
+      "name": "Pedir token de servicio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://gateway:8000/agentes/monitoreo/ejecutar",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.access_token }}" }] },
+        "options": { "timeout": 60000 }
+      },
+      "id": "mon-0004",
+      "name": "Ejecutar el agente de monitoreo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// El agente observa y avisa por su cuenta (webhook de alertas); aquí solo queda el resumen de la ejecución programada (G5).\nconst informe = $input.first().json;\nreturn [{ json: { origen: 'PROGRAMADO', informeId: informe.id, generadoEn: informe.generadoEn, resumen: informe.resumen, alertas: (informe.alertas || []).length, notificado: informe.notificado } }];"
+      },
+      "id": "mon-0005",
+      "name": "Resumir la ejecución",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Cada día a las 08:00": { "main": [[{ "node": "Pedir token de servicio", "type": "main", "index": 0 }]] },
+    "Ejecutar a mano": { "main": [[{ "node": "Pedir token de servicio", "type": "main", "index": 0 }]] },
+    "Pedir token de servicio": { "main": [[{ "node": "Ejecutar el agente de monitoreo", "type": "main", "index": 0 }]] },
+    "Ejecutar el agente de monitoreo": { "main": [[{ "node": "Resumir la ejecución", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "America/La_Paz" }
+}

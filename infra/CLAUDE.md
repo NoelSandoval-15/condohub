@@ -112,6 +112,7 @@ Imagen `n8nio/n8n:1.64.0`, editor en <http://localhost:5678>, estado en la base 
 | Informe mensual | día 1 a las 08:00 | resumen de morosidad por bloque y pagos por conciliar, solo al `ADMIN` (`morosos` y `pagosPendientes`; el envío a propietarios exigiría una consulta nueva en Gestión) |
 | Notificación de reserva | `ReservaConfirmada` / `ReservaFallida` | avisa al residente |
 | Push al guardia | webhook `POST /webhook/push-guardia` con `{titulo, cuerpo}` (`push-guardia.json`) | envía una notificación FCM al tema `guardia` de la app móvil. Firma el token con la cuenta de servicio de `infra/secrets/firebase-sa.json` (fuera de git, montada en solo lectura; n8n con `NODE_FUNCTION_ALLOW_BUILTIN=fs,crypto`). Probado el 28/10/2026: FCM devuelve el id del mensaje |
+| Monitoreo diario del agente | `scheduleTrigger` 08:00 (La Paz) o a mano (`monitoreo-diario.json`) | pide un token de servicio y llama `POST /agentes/monitoreo/ejecutar`: el agente de monitoreo (G5) corre solo cada día, guarda su informe y, si hay alertas, avisa al `ADMIN` por el webhook de alertas. Probado el 31/10/2026: crea el informe y marca `notificado`. El informe queda con origen `MANUAL` porque el endpoint no distingue quién lo llama |
 | Alertas del agente de monitoreo | webhook `POST /webhook/agente-alertas` (lo llama el servicio Agentes, G5) | correo al `ADMIN_EMAIL` con las anomalías |
 | Recordatorio pedido por el agente | webhook `POST /webhook/agente-recordatorio` (tras la aprobación del ADMIN, G2) | busca al titular en Gestión y le envía el mensaje; sin correo, al ADMIN |
 
@@ -164,4 +165,6 @@ docker compose -f infra/docker-compose.yml up -d
 docker compose -f infra/docker-compose.yml down       # -v borra datos
 docker compose -f infra/docker-compose.yml logs -f keycloak
 node infra/humo.mjs        # prueba de humo: login de los 3 usuarios + "hola" de cada servicio por el gateway (GATEWAY_PORT si no usas el 8080)
+node infra/probar-caos-saga.mjs   # prueba de caos de la saga (local): apaga el consumidor de Acceso y reserva el salón; Acceso no vuelve → se agota el plazo y compensa (reserva FALLIDA, saga COMPENSADA, cargos ANULADOS)
+node infra/probar-caos-saga.mjs --recuperar   # Acceso vuelve a los 10 s, dentro del plazo: el comando esperó en la cola durable y la reserva termina CONFIRMADA (S2). Ambos modos vuelven a encender lo que apagaron
 ```
