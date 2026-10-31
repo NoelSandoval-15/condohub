@@ -11,3 +11,11 @@ ia.{$DOMINIO} {
 agentes.{$DOMINIO} {
 	reverse_proxy agentes:8084
 }
+
+# Descarga de reportes: el navegador abre la URL firmada (G4) contra este nombre. Solo se expone la carpeta de reportes;
+# fotos y modelos quedan sin camino público. Caddy conserva el Host, que forma parte de la firma.
+almacen.{$DOMINIO} {
+	@reportes path /reportes/*
+	reverse_proxy @reportes minio:9000
+	respond "No encontrado" 404
+}

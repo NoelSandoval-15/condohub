@@ -105,6 +105,7 @@ services:
       ALMACEN_FOTOS: s3
       ALMACEN_REPORTES: s3
       S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT_PUBLICO: https://almacen.${DOMINIO}   # el que ve el navegador en las URLs firmadas de los reportes
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-condohub}:${RABBITMQ_PASSWORD:-condohub}@${RABBITMQ_HOST}:5672/%2F
@@ -182,7 +183,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [reservas, ia, agentes]
+    depends_on: [reservas, ia, agentes, minio]
 
 volumes:
   pg_data:
