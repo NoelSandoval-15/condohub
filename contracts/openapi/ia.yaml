@@ -239,7 +239,7 @@ paths:
       operationId: crearReportePorVoz
       summary: Crear un reporte a partir de una instrucción de voz
       description: |
-        Audio → Whisper → LLM arma una consulta GraphQL **de solo lectura** contra Gestión → Excel o PDF (G4).
+        Audio → Whisper (o la instrucción escrita) → LLM arma una consulta GraphQL **de solo lectura** contra Gestión → Excel o PDF (G4).
         Cualquier operación que no sea `query` se rechaza con 422 `code: G4`. Se guardan el texto, la consulta y el archivo.
         El proceso es asíncrono: se consulta el avance con `GET /reportes/{id}`. Solo `ADMIN`.
       requestBody:
@@ -248,9 +248,10 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [audio]
+              description: Se envía `audio` (hablado) o `instruccion` (escrita), uno de los dos. Con `instruccion` se omite Whisper y el resto del flujo es el mismo, incluida la comprobación de solo lectura.
               properties:
-                audio: { type: string, format: binary, description: 'WAV, MP3 o WebM' }
+                audio: { type: string, format: binary, description: 'WAV, MP3 o WebM (alternativa a `instruccion`)' }
+                instruccion: { type: string, minLength: 1, maxLength: 1000, description: 'La orden escrita, por ejemplo «morosidad por bloque en Excel» (alternativa a `audio`)' }
                 formato:
                   type: string
                   enum: [EXCEL, PDF]
