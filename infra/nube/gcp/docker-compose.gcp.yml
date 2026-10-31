@@ -170,9 +170,39 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}   # el 20b agota sus tokens razonando y devuelve vacío (finish_reason=length)
       RESERVAS_URL: http://reservas:8082                  # herramientas de solo lectura sobre Reservas (E6, C2)
-      N8N_WEBHOOK_ALERTAS: ${N8N_WEBHOOK_ALERTAS:-}
-      N8N_WEBHOOK_RECORDATORIOS: ${N8N_WEBHOOK_RECORDATORIOS:-}
+      N8N_WEBHOOK_ALERTAS: ${N8N_WEBHOOK_ALERTAS:-http://n8n:5678/webhook/agente-alertas}
+      N8N_WEBHOOK_RECORDATORIOS: ${N8N_WEBHOOK_RECORDATORIOS:-http://n8n:5678/webhook/agente-recordatorio}
     expose: ["8084"]
+
+  n8n:                          # automatizaciones: eventos (correo y push), monitoreo diario y avisos del agente
+    image: n8nio/n8n:1.64.0
+    restart: unless-stopped
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_HOST: n8n
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://n8n:5678/
+      GENERIC_TIMEZONE: America/La_Paz
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: fs,crypto            # el flujo del push firma el token de Firebase con fs y crypto
+      GUARDIA_EMAIL: ${GUARDIA_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      MAIL_REMITENTE: ${MAIL_REMITENTE:-}               # con Gmail debe ser la cuenta del SMTP
+      CONTACTOS_UNIDADES: ${CONTACTOS_UNIDADES:-}
+      CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-}
+      MONEDA: ${MONEDA:-BOB}
+    ports: ["127.0.0.1:5678:5678"]                      # solo la propia VM: al editor se entra por túnel SSH, nunca por Caddy
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ../../n8n/flows:/flows:ro
+      - ../../secrets:/secrets:ro                       # firebase-sa.json (fuera de git; se copia a mano a esta VM)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   caddy:                        # HTTPS automático para reservas., ia. y agentes. de ${DOMINIO}
     image: caddy:2.8
@@ -189,5 +219,6 @@ volumes:
   pg_data:
   mongo_data:
   minio_data:
+  n8n_data:
   ia_modelos:
   caddy_data:
