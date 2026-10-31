@@ -165,6 +165,7 @@ services:
       GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql
       CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-}   # el mismo del realm de Azure (cliente condohub-servicios)
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}   # el 20b agota sus tokens razonando y devuelve vacío (finish_reason=length)
       N8N_WEBHOOK_ALERTAS: ${N8N_WEBHOOK_ALERTAS:-}
       N8N_WEBHOOK_RECORDATORIOS: ${N8N_WEBHOOK_RECORDATORIOS:-}
     expose: ["8084"]
