@@ -15,6 +15,7 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       TABLA_ACCESO: ${TABLA_ACCESO:-condohub-acceso}
       GESTION_GRAPHQL_URL: https://api.${AZURE_DOMINIO}/gestion/graphql   # F1: unidades de quien anuncia la visita
+      IA_URL: https://api.${AZURE_DOMINIO}/ia   # I4: alertas de visitantes recurrentes (IA vive en GCP; se llega por el gateway de Azure)
     expose: ["3001"]
 
   acceso-saga:                  # S3: paso 3 de la saga; necesita RabbitMQ de Azure abierto a esta VM (perfil `saga`)

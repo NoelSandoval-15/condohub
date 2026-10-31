@@ -77,6 +77,7 @@ services:
       <<: *keycloak
       DYNAMODB_ENDPOINT: http://dynamodb:8000
       GESTION_GRAPHQL_URL: http://gateway:8000/gestion/graphql   # F1: unidades de quien anuncia la visita, por el gateway interno
+      IA_URL: http://gateway:8000/ia                              # I4: alertas de visitantes recurrentes (capa anticorrupción), por el gateway interno
     ports: ["3001:3001"]
 
   acceso-saga:                  # S3: paso 3 de la saga (emitir y revocar los pases de los invitados) y relevo del stream (S4)
