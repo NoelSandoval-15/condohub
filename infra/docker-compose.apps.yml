@@ -169,6 +169,7 @@ services:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: agentes
       GESTION_GRAPHQL_URL: http://gestion:8081/graphql
+      RESERVAS_URL: http://reservas:8082                    # herramientas de solo lectura sobre Reservas y reporte consolidado (E6, C2)
       KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/condohub/protocol/openid-connect/token   # cuenta de servicio (client_credentials)
       CONDOHUB_SERVICIOS_SECRET: ${CONDOHUB_SERVICIOS_SECRET:-condohub-servicios-dev}
       GROQ_API_KEY: ${GROQ_API_KEY:-}                      # misiones con LLM (G1); sin clave, POST /misiones responde 503
