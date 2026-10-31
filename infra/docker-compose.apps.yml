@@ -132,6 +132,8 @@ services:
     image: condohub-ia:dev
     depends_on: [ia]
     restart: unless-stopped
+    healthcheck:
+      disable: true   # el job nocturno no sirve HTTP: heredaba el healthcheck del servicio ia y salía «unhealthy» sin estarlo
     environment:
       <<: *ia-entorno
       TZ: America/La_Paz

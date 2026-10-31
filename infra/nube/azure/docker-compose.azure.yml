@@ -7,6 +7,7 @@
 
 services:
   keycloak:
+    restart: unless-stopped
     environment:
       KC_HOSTNAME: https://auth.${DOMINIO}              # el `iss` de los tokens es siempre este nombre público
       KC_PROXY_HEADERS: xforwarded                       # Caddy termina el TLS
@@ -14,15 +15,18 @@ services:
       - ./nube/azure/generado/realm-condohub.json:/opt/keycloak/data/import/realm-condohub.json:ro
 
   gestion:
+    restart: unless-stopped
     environment:
       KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
 
   gateway:
+    restart: unless-stopped
     depends_on: !reset []                                 # en la base depende de todos los servicios; aquí los otros viven en otras nubes
     volumes:
       - ./nube/azure/generado/kong.yml:/kong/kong.yml:ro
 
   shell:
+    restart: unless-stopped
     build:
       args:
         VITE_KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
@@ -31,19 +35,29 @@ services:
         VITE_REMOTE_GUARDIA: https://guardia.${DOMINIO}/assets/remoteEntry.js
 
   admin:
+    restart: unless-stopped
     build:
       args:
         VITE_GATEWAY_URL: https://api.${DOMINIO}
 
   residente:
+    restart: unless-stopped
     build:
       args:
         VITE_GATEWAY_URL: https://api.${DOMINIO}
 
   guardia:
+    restart: unless-stopped
     build:
       args:
         VITE_GATEWAY_URL: https://api.${DOMINIO}
+
+  # Postgres y RabbitMQ vienen del compose base (sin política de reinicio): sin esto no vuelven tras apagar y encender la VM.
+  postgres:
+    restart: unless-stopped
+
+  rabbitmq:
+    restart: unless-stopped
 
   caddy:                        # HTTPS automático (Let's Encrypt) para los nombres <servicio>.${DOMINIO}
     image: caddy:2.8
