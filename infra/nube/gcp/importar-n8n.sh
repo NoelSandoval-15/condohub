@@ -35,11 +35,13 @@ done
 
 # --wait: el primer arranque migra la base de n8n; importar a la vez la corrompe («index already exists»).
 "${DC[@]}" up -d --wait n8n
+# docker cp deja los archivos a nombre de root: se limpian como root (antes y después), y la contraseña SMTP no queda en el contenedor.
+"${DC[@]}" exec -T -u root n8n rm -rf /tmp/credenciales.json /tmp/flows
 "${DC[@]}" cp "$TMP/credenciales.json" n8n:/tmp/credenciales.json
 "${DC[@]}" cp "$TMP/flows" n8n:/tmp/flows
 "${DC[@]}" exec -T n8n n8n import:credentials --input=/tmp/credenciales.json
 "${DC[@]}" exec -T n8n n8n import:workflow --separate --input=/tmp/flows
-"${DC[@]}" exec -T n8n rm -rf /tmp/credenciales.json /tmp/flows
+"${DC[@]}" exec -T -u root n8n rm -rf /tmp/credenciales.json /tmp/flows
 
 # Se activa lo que corresponde. «Recordatorio de morosos» (recordatorioMorosos01) queda apagado: manda un correo por unidad.
 "${DC[@]}" exec -T n8n n8n update:workflow --all --active=false
