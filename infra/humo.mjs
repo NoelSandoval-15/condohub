@@ -4,7 +4,19 @@
 // Variables opcionales: GATEWAY_PORT (8080), KEYCLOAK_URL (http://localhost:8180), USUARIOS_PRUEBA_PASSWORD (Condohub123!)
 // Sale con código 1 si algún servicio que SÍ está levantado responde algo inesperado.
 
-const gateway = `http://localhost:${process.env.GATEWAY_PORT ?? 8080}`;
+import { readFileSync } from 'node:fs';
+
+// GATEWAY_PORT: del entorno o, si no, de infra/.env (así no hace falta repetirlo con un puerto distinto del 8080).
+function puertoDelEnv() {
+  try {
+    const lineas = readFileSync(new URL('.env', import.meta.url), 'utf8').split(String.fromCharCode(10));
+    const linea = lineas.map((l) => l.trim()).find((l) => l.startsWith('GATEWAY_PORT='));
+    return linea?.split('=')[1]?.split('#')[0].trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+const gateway = `http://localhost:${process.env.GATEWAY_PORT ?? puertoDelEnv() ?? 8080}`;
 const keycloak = process.env.KEYCLOAK_URL ?? 'http://localhost:8180';
 const clave = process.env.USUARIOS_PRUEBA_PASSWORD ?? 'Condohub123!';
 const usuarios = ['admin', 'residente', 'guardia'];
