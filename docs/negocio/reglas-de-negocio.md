@@ -64,7 +64,7 @@ Orquestada desde Reservas, comunicación por RabbitMQ:
 | 4 | Notificaciones | Avisar al residente | — |
 
 - **S1.** El estado de cada saga se persiste en Reservas (`saga_instancia`); tras un reinicio se retoma.
-- **S2.** Cada paso se reintenta 3 veces con espera exponencial. Si falla, se compensan en orden inverso los pasos ya hechos y se avisa al residente.
+- **S2.** Cada paso espera su respuesta hasta un plazo configurable (`saga.timeout_paso_segundos`, 30 s inicial). El comando permanece en una cola durable: si el servicio vuelve dentro del plazo lo procesa y la saga sigue, y un fallo técnico al consumirlo se reintenta 3 veces antes de ir a la cola de errores (DLQ). Vencido el plazo, se compensan en orden inverso los pasos ya hechos y se avisa al residente. La espera exponencial es de las compensaciones (S3). *(Ajustada el 31/10/2026 para describir lo que implementa el orquestador; pendiente de confirmar con Aldana y Erick.)*
 - **S3.** Las compensaciones se reintentan hasta lograrse. Si una no puede, la saga queda `REQUIERE_REVISION` y aparece en la consola del `ADMIN`.
 - **S4.** Patrón **Outbox** en todos los servicios que publican eventos: el cambio y el mensaje se guardan en la misma transacción.
 - **S5.** Todo consumidor es **idempotente**: guarda el `eventId` procesado y descarta repetidos.
