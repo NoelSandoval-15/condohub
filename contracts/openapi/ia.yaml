@@ -91,6 +91,8 @@ paths:
                 unidadId: { type: string, format: uuid }
                 consentimientoFecha: { type: string, format: date-time, description: 'Momento en que el residente aceptó (UTC)' }
                 consentimientoVersion: { type: string, description: 'Versión del texto de consentimiento aceptado' }
+                nombre: { type: string, maxLength: 120, description: 'Opcional. Nombre para mostrar al guardia al reconocerlo (copia informativa; el dato vive en Gestión)' }
+                unidadCodigo: { type: string, maxLength: 10, example: B-101, description: 'Opcional. Código de la unidad para mostrar al guardia' }
                 fotos:
                   type: array
                   minItems: 1
@@ -334,6 +336,8 @@ components:
         modelo: { type: string, example: facenet-vggface2 }
         version: { type: string, example: '1.0.0' }
         prediccionId: { type: string, description: 'Id del registro en `predicciones` (I5)' }
+        nombre: { type: string, description: 'Nombre del candidato (RECONOCIDO o DUDOSO). Se omite si el perfil se registró sin nombre' }
+        unidadCodigo: { type: string, example: B-101, description: 'Unidad del candidato. Se omite si el perfil se registró sin ella' }
 
     VisitanteRecurrente:
       type: object
