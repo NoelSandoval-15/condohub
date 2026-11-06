@@ -38,6 +38,7 @@ Servicio `keycloak` (imagen 25.0.6, `start-dev --import-realm`, base `keycloak` 
 - **Clientes**: `condohub-spa` (público, Authorization Code + PKCE S256, redirect a los puertos 5173/5174/5175/4200; tiene `directAccessGrantsEnabled` solo para pruebas con curl) y `condohub-servicios` (confidencial, `client_credentials`, secreto `CONDOHUB_SERVICIOS_SECRET`) para n8n, agentes y reportes. Su cuenta de servicio tiene el rol `ADMIN` para poder leer `morosos` en Gestión (decisión del 16/10/2026: no se agregan roles nuevos; G2 sigue exigiendo confirmación humana para todo lo que cree cargos). Si ya tenías el realm importado, el cambio no se aplica solo: asigna el rol `ADMIN` a `service-account-condohub-servicios` en la consola de Keycloak y activa «Full scope allowed» del cliente.
 - Clave de firma: RSA fija de desarrollo (ver "Gateway"); los tokens se validan con ella en el gateway y en los servicios (vía JWKS del realm).
 - Access token: 15 min. Sesión inactiva: 30 min.
+- **Pantalla de login**: tema propio en `keycloak/themes/condohub/login/` (montado por Compose; el formulario sigue siendo de Keycloak y la contraseña nunca pasa por los frontends). El realm lo activa con `loginTheme`, en español. Si ya tenías el realm importado, el cambio no se aplica solo: `kcadm.sh update realms/condohub -s loginTheme=condohub -s internationalizationEnabled=true -s 'supportedLocales=["es"]' -s defaultLocale=es`.
 
 Obtener un token para probar un endpoint:
 

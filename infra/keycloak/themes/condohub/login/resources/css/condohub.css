@@ -1,0 +1,211 @@
+/* Pantallas de login de Keycloak. La foto va detrás; la tarjeta es casi opaca para que el texto se lea sobre cualquier zona. */
+:root {
+  --ch-tarjeta: rgba(12, 20, 32, 0.74);
+  --ch-texto: #ffffff;
+  --ch-suave: #d3dbe5;
+  --ch-borde: rgba(255, 255, 255, 0.26);
+  --ch-control: rgba(255, 255, 255, 0.5);
+  --ch-acento: #6db3ff;
+  --ch-boton: #1f5fae;
+  --ch-boton-hover: #2a6fc4;
+  --ch-salida: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+html { background: #101a2a; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 24px 16px;
+  color: var(--ch-texto);
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  background:
+    linear-gradient(rgba(8, 14, 24, 0.28), rgba(8, 14, 24, 0.28)),
+    url('../img/fondo.jpg') center / cover no-repeat fixed #101a2a;
+}
+
+::selection { background: var(--ch-acento); color: #0b1726; }
+
+:focus-visible { outline: 2px solid var(--ch-acento); outline-offset: 2px; }
+
+.ch-tarjeta {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 32px 22px;
+  border: 1px solid var(--ch-borde);
+  border-radius: 20px;
+  background: var(--ch-tarjeta);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  animation: ch-entrar 0.45s var(--ch-salida);
+}
+
+@keyframes ch-entrar {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+}
+
+.ch-cabecera { text-align: center; margin-bottom: 20px; }
+
+.ch-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 12px;
+  border: 1.5px solid var(--ch-acento);
+  border-radius: 50%;
+  background: rgba(31, 95, 174, 0.38);
+  color: #ffffff;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.ch-subtitulo { margin: 6px 0 0; color: var(--ch-suave); font-size: 14px; }
+
+.ch-usuario-intentado { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+
+/* Las páginas heredadas de Keycloak (cambiar contraseña, errores) usan estos elementos sin clases propias. */
+form { display: flex; flex-direction: column; gap: 14px; margin: 0; }
+
+label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: 600; }
+
+input[type='text'],
+input[type='password'],
+input[type='email'] {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--ch-control);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ch-texto);
+  font: inherit;
+  transition: border-color 0.16s ease-out, background-color 0.16s ease-out;
+}
+
+input:hover { border-color: rgba(255, 255, 255, 0.75); }
+
+input:focus { outline: none; border-color: var(--ch-acento); background: rgba(255, 255, 255, 0.14); box-shadow: 0 0 0 3px rgba(109, 179, 255, 0.35); }
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
+  box-shadow: 0 0 0 40px #2a3545 inset;
+}
+
+input[aria-invalid='true'] { border-color: #ff9f8e; }
+
+.ch-control { position: relative; }
+
+.ch-control input { padding-left: 42px; }
+
+.ch-control input[type='password'],
+.ch-control input#password { padding-right: 50px; }
+
+.ch-icono { position: absolute; left: 14px; top: 15px; color: var(--ch-suave); pointer-events: none; }
+
+.ch-ver {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ch-suave);
+  cursor: pointer;
+}
+
+.ch-ver:hover { color: #ffffff; }
+
+.ch-ver[aria-pressed='true'] { color: var(--ch-acento); }
+
+.ch-error-campo { display: block; margin-top: 6px; color: #ffc4b8; font-size: 14px; font-weight: 500; }
+
+.ch-alerta { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; font-size: 14.5px; font-weight: 500; }
+.ch-alerta--error { background: #5b1f18; color: #ffd7cf; }
+.ch-alerta--warning { background: #4a3a10; color: #fbe6a9; }
+.ch-alerta--success { background: #14463a; color: #c5f0dc; }
+.ch-alerta--info { background: #1b3556; color: #d6e8ff; }
+
+.ch-nota { margin: -2px 0 0; color: var(--ch-suave); font-size: 13.5px; text-align: center; }
+
+.ch-principal,
+input[type='submit'],
+button[type='submit']:not(.ch-enlace) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 18px;
+  border: 1px solid #3f83d8;
+  border-radius: 12px;
+  background: var(--ch-boton);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.16s ease-out, transform 0.1s ease-out;
+}
+
+.ch-principal:hover,
+input[type='submit']:hover,
+button[type='submit']:not(.ch-enlace):hover { background: var(--ch-boton-hover); }
+
+.ch-principal:active,
+input[type='submit']:active { transform: scale(0.985); }
+
+.ch-principal:disabled { opacity: 0.7; cursor: progress; }
+
+.ch-ayuda { display: block; margin: 0; color: var(--ch-suave); font-size: 14px; text-align: center; }
+
+a { color: #a9d2ff; text-underline-offset: 3px; }
+a:hover { color: #ffffff; }
+
+.ch-enlace { border: 0; padding: 8px 0; background: none; color: #a9d2ff; font: inherit; text-decoration: underline; cursor: pointer; }
+
+.ch-info,
+.ch-proveedores { margin: 14px 0 0; padding: 0; list-style: none; text-align: center; }
+
+.ch-pie {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ch-borde);
+  color: var(--ch-suave);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  body { background-attachment: scroll; padding: 16px; }
+  .ch-tarjeta { padding: 22px 20px 18px; }
+  h1 { font-size: 23px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

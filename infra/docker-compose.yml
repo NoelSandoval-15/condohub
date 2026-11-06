@@ -107,6 +107,7 @@ services:
     ports: ["8180:8080"]
     volumes:
       - ./keycloak/realm-condohub.json:/opt/keycloak/data/import/realm-condohub.json:ro
+      - ./keycloak/themes/condohub:/opt/keycloak/themes/condohub:ro   # pantalla de login propia
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
       interval: 10s
