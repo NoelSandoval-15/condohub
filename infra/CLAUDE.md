@@ -177,3 +177,9 @@ node infra/humo.mjs        # prueba de humo: login de los 3 usuarios + "hola" de
 node infra/probar-caos-saga.mjs   # prueba de caos de la saga (local): apaga el consumidor de Acceso y reserva el salón; Acceso no vuelve → se agota el plazo y compensa (reserva FALLIDA, saga COMPENSADA, cargos ANULADOS)
 node infra/probar-caos-saga.mjs --recuperar   # Acceso vuelve a los 10 s, dentro del plazo: el comando esperó en la cola durable y la reserva termina CONFIRMADA (S2). Ambos modos vuelven a encender lo que apagaron
 ```
+
+## Datos sintéticos de demostración (06/11/2026)
+
+`node infra/datos-demo/poblar-demo.mjs` amplía la semilla de Gestión y Reservas para que los reportes, la conciliación, los recargos y las reservas tengan volumen creíble (detalle en `docs/datos/modelo-de-datos.md`, sección 6). Con `--nube` escribe por SSH en Azure (Gestión) y Google (Reservas); las VMs deben estar encendidas. Es idempotente y solo agrega datos: `gestion.sql` es el marcador (proveedor `NIT-1005`). Si hace falta volver atrás, restaurar un `pg_dump -Fc` con `pg_restore --clean`. Cuidado con la fecha: el día 11 de cada mes las expensas sin pagar pasan a vencidas, así que en local el script paga noviembre de quien está al día.
+
+Acceso: `infra/datos-demo/acceso-demo.mjs` agrega bitácora y pases a DynamoDB (local: `docker cp` al contenedor `condohub-acceso-1` y `docker exec -e DYNAMODB_ENDPOINT=http://dynamodb:8000 … node /app/acceso-demo.mjs`; AWS: `scp` a la VM, `docker cp` a `aws-acceso-1` y `docker exec … node /app/acceso-demo.mjs`, sin claves: usa el rol de IAM). Agentes no se puebla por script: las misiones reales se lanzan desde la pestaña Agente de la consola admin.
