@@ -4,9 +4,9 @@
 Se ejecuta DENTRO del contenedor, que ya tiene las variables S3_*:
     docker exec -i gcp-ia-1 python - < infra/nube/probar-s3.py
 
-Comprueba, para los tres buckets de IA (reportes, modelos y rostros): que se pueda «crear» (idempotente; en AWS el bucket ya existe y
-el usuario IAM solo puede nombrar esos tres), subir un objeto, bajarlo, descargarlo por una URL firmada como lo haría el navegador y,
-solo en el bucket de rostros (I1: borrado real), borrarlo. Imprime OK o el error de cada paso; nunca las credenciales.
+Comprueba, para los buckets de IA en uso (reportes y modelos; rostros solo si ALMACEN_FOTOS=s3): que se pueda «crear» (idempotente; en AWS el bucket ya existe y
+el usuario IAM solo puede nombrar los suyos), subir un objeto, bajarlo, descargarlo por una URL firmada como lo haría el navegador y,
+solo en el bucket de rostros si se usa (I1: borrado real), borrarlo. Imprime OK o el error de cada paso; nunca las credenciales.
 """
 
 import os
@@ -27,8 +27,10 @@ SECRETO = os.environ.get("S3_SECRET_KEY", "")
 BUCKETS = {
     "reportes": os.environ.get("S3_BUCKET_REPORTES", "reportes"),
     "modelos": os.environ.get("S3_BUCKET_MODELOS", "modelos"),
-    "rostros": os.environ.get("S3_BUCKET_ROSTROS", "rostros"),
 }
+# Las fotos de rostros solo usan un bucket si ALMACEN_FOTOS=s3; con «memoria» no se toca (probarlo lo crearía).
+if os.environ.get("ALMACEN_FOTOS", "memoria") == "s3":
+    BUCKETS["rostros"] = os.environ.get("S3_BUCKET_ROSTROS", "rostros")
 CLAVE = "_prueba/verificacion.txt"
 CONTENIDO = b"CondoHub: verificacion del almacen S3\n"
 

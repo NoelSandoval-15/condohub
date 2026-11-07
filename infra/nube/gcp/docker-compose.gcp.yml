@@ -102,7 +102,7 @@ services:
       PERSISTENCIA: mongo
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: ia
-      ALMACEN_FOTOS: s3
+      ALMACEN_FOTOS: ${ALMACEN_FOTOS:-s3}   # memoria = no se guarda ninguna foto de rostro (solo el embedding en MongoDB); s3 = bucket de rostros
       ALMACEN_REPORTES: s3
       # Sin S3_AWS_* es el SeaweedFS de esta VM (servicio minio). Con S3_AWS_ENDPOINT=https://s3.us-east-1.amazonaws.com es el S3 real
       # de AWS: las URLs firmadas que ve el navegador apuntan directo a AWS y se usan las claves de un usuario IAM propio.
