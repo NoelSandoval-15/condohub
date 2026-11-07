@@ -112,7 +112,11 @@ services:
       S3_SECRET_KEY: ${S3_AWS_SECRET_KEY:-${S3_SECRET_KEY}}
       S3_REGION: ${S3_AWS_REGION:-us-east-1}
       S3_BUCKET_MODELOS: ${S3_BUCKET_MODELOS:-modelos}
-      S3_BUCKET_ROSTROS: ${S3_BUCKET_ROSTROS:-rostros}
+      # Las fotos de rostros se quedan SIEMPRE en el almacén de la VM (I1), aunque los reportes y modelos usen AWS.
+      S3_ROSTROS_ENDPOINT: http://minio:9000
+      S3_ROSTROS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_ROSTROS_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_ROSTROS: rostros
       S3_BUCKET_REPORTES: ${S3_BUCKET_REPORTES:-reportes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-condohub}:${RABBITMQ_PASSWORD:-condohub}@${RABBITMQ_HOST}:5672/%2F
       MODELO_FACIAL: facenet
