@@ -13,6 +13,7 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - emitirExpensas:    solo ADMIN.
   - registrarPago:     ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
   - simularPago:       ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no. Solo lectura.
+  - solicitarSubidaComprobante, urlComprobante: ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
   - confirmarPago, rechazarPago: solo ADMIN.
   - recargosPropuestos, proponerRecargo, confirmarRecargo, rechazarRecargo: solo ADMIN (incluida la cuenta de
     servicio de Agentes, que solo propone tras la aprobación del ADMIN, G2).
@@ -45,6 +46,9 @@ type Query {
   "Recargos en estado PROPUESTO, a la espera de que el ADMIN los confirme o rechace (F5). Solo ADMIN."
   recargosPropuestos: [RecargoPropuesto!]!
 
+  "Enlace temporal (unos minutos) para ver la foto del comprobante de un pago (F8), o null si el pago no tiene foto. ADMIN y RESIDENTE de la unidad del pago (F1). Errores: F1, NOT_FOUND si el pago no existe, SERVICE_UNAVAILABLE si el almacén no está configurado."
+  urlComprobante(pagoId: ID!): String
+
   "Vista previa de a qué cargos se aplicaría un pago de ese monto, con la misma regla FIFO que usa la confirmación (F7): vencimiento más antiguo primero y el excedente como saldo a favor. Solo lectura: no registra ni confirma nada (F9). F1: el RESIDENTE solo para su unidad. Errores: F1, F10 si el monto no es mayor a 0 o tiene más de 2 decimales, NOT_FOUND si la unidad no existe."
   simularPago(unidadId: ID!, monto: Decimal!): SimulacionPago!
 }
@@ -74,6 +78,8 @@ type Mutation {
     horaDispositivo: String
     "Número de operación del comprobante (lo prellena el OCR si lo lee). Banco + número de operación no se registran dos veces (F8)."
     nroOperacion: String
+    "Clave de la foto del comprobante ya subida con solicitarSubidaComprobante (opcional: sin conexión el pago se registra sin foto). Gestión comprueba que el archivo exista y que sea de esa unidad y de esa idempotencyKey (F8)."
+    comprobanteKey: String
   ): Pago!
 
   "Confirma un pago PENDIENTE (F8): se imputa FIFO a los cargos pendientes de la unidad, primero los vencidos más antiguos (F7); el excedente queda como saldo a favor y se emite el recibo. Solo ADMIN. Errores: F8 si el pago ya no está PENDIENTE; NOT_FOUND si no existe."
@@ -97,6 +103,19 @@ type Mutation {
 
   "Rechaza un recargo PROPUESTO (F5): no se cobra. Solo ADMIN. Errores: F5 si ya no está PROPUESTO o el motivo supera 300 caracteres; NOT_FOUND."
   rechazarRecargo(propuestaId: ID!, motivo: String): RecargoPropuesto!
+
+  "Pide una dirección temporal para subir directo al almacén de documentos (S3) la foto del comprobante de un pago de esa unidad (F8). La clave es determinista (carpeta de la unidad + la idempotencyKey del pago), así un reintento nunca duplica la foto. No registra nada. ADMIN y RESIDENTE de su unidad (F1). Errores: F1; F8 si la clave de idempotencia no es un UUID v4 o el tipo de contenido no es imagen JPEG, PNG o WebP; NOT_FOUND si la unidad no existe; SERVICE_UNAVAILABLE si el almacén no está configurado."
+  solicitarSubidaComprobante(unidadId: ID!, idempotencyKey: ID!, tipoContenido: String!): SubidaComprobante!
+}
+
+"Dirección temporal para subir la foto de un comprobante (HTTP PUT con el mismo tipo de contenido pedido)."
+type SubidaComprobante {
+  "Clave del objeto en el almacén; se envía luego en registrarPago como comprobanteKey."
+  clave: String!
+  "URL firmada para el PUT."
+  url: String!
+  "Hasta cuándo sirve la URL, ISO-8601 UTC."
+  expiraEn: String!
 }
 
 enum EstadoRecargo {

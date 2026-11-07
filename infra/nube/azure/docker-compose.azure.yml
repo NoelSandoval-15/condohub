@@ -18,6 +18,11 @@ services:
     restart: unless-stopped
     environment:
       KEYCLOAK_ISSUER: https://auth.${DOMINIO}/realms/condohub
+      # F8: foto del comprobante en S3. Sin estas variables Gestión sigue igual y los pagos quedan sin foto.
+      S3_COMPROBANTES_BUCKET: ${S3_COMPROBANTES_BUCKET:-}
+      S3_COMPROBANTES_ACCESS_KEY: ${S3_COMPROBANTES_ACCESS_KEY:-}
+      S3_COMPROBANTES_SECRET_KEY: ${S3_COMPROBANTES_SECRET_KEY:-}
+      S3_COMPROBANTES_REGION: ${S3_COMPROBANTES_REGION:-us-east-1}
 
   gateway:
     restart: unless-stopped
