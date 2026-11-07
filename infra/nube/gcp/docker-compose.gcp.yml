@@ -118,6 +118,7 @@ services:
       S3_ROSTROS_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_ROSTROS: rostros
       S3_BUCKET_REPORTES: ${S3_BUCKET_REPORTES:-reportes}
+      S3_PREFIJO_REPORTES: ${S3_PREFIJO_REPORTES:-}   # carpeta dentro del bucket para los reportes, p. ej. reportes/ (vacío = raíz)
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-condohub}:${RABBITMQ_PASSWORD:-condohub}@${RABBITMQ_HOST}:5672/%2F
       MODELO_FACIAL: facenet
       TORCH_HOME: /models/torch                          # pesos de FaceNet: se descargan una vez y quedan en el volumen
