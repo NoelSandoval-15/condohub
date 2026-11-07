@@ -12,6 +12,7 @@ Autorización (la hace Gestión con el rol del token de Keycloak):
   - morosos:           solo ADMIN (incluida la cuenta de servicio de n8n y Agentes).
   - emitirExpensas:    solo ADMIN.
   - registrarPago:     ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no.
+  - simularPago:       ADMIN (cualquier unidad) y RESIDENTE (solo su unidad, F1). GUARDIA no. Solo lectura.
   - confirmarPago, rechazarPago: solo ADMIN.
   - recargosPropuestos, proponerRecargo, confirmarRecargo, rechazarRecargo: solo ADMIN (incluida la cuenta de
     servicio de Agentes, que solo propone tras la aprobación del ADMIN, G2).
@@ -43,6 +44,9 @@ type Query {
 
   "Recargos en estado PROPUESTO, a la espera de que el ADMIN los confirme o rechace (F5). Solo ADMIN."
   recargosPropuestos: [RecargoPropuesto!]!
+
+  "Vista previa de a qué cargos se aplicaría un pago de ese monto, con la misma regla FIFO que usa la confirmación (F7): vencimiento más antiguo primero y el excedente como saldo a favor. Solo lectura: no registra ni confirma nada (F9). F1: el RESIDENTE solo para su unidad. Errores: F1, F10 si el monto no es mayor a 0 o tiene más de 2 decimales, NOT_FOUND si la unidad no existe."
+  simularPago(unidadId: ID!, monto: Decimal!): SimulacionPago!
 }
 
 type Mutation {
@@ -144,6 +148,27 @@ type EmisionExpensas {
   unidades: Int!
   "Suma de las expensas emitidas; siempre igual al presupuesto (F3)."
   total: Decimal!
+}
+
+"Cómo se repartiría un pago entre los cargos pendientes de la unidad (F7), sin guardar nada."
+type SimulacionPago {
+  "Solo los cargos a los que llegaría el pago, en el orden de aplicación."
+  lineas: [LineaSimulacion!]!
+  "Lo que sobraría y quedaría como saldo a favor."
+  excedente: Decimal!
+}
+
+type LineaSimulacion {
+  cargoId: ID!
+  "EXPENSA, RECARGO, USO_AREA, GARANTIA o AJUSTE."
+  tipo: String!
+  concepto: String!
+  "Fecha de vencimiento del cargo, ISO-8601 (yyyy-MM-dd)."
+  fechaVencimiento: String!
+  saldoActual: Decimal!
+  "Parte del pago que se aplicaría a este cargo."
+  aplicado: Decimal!
+  saldoResultante: Decimal!
 }
 
 type PersonaCuenta {
