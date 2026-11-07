@@ -35,6 +35,13 @@ CLAVE = "_prueba/verificacion.txt"
 CONTENIDO = b"CondoHub: verificacion del almacen S3\n"
 
 cliente = ClienteS3(ENDPOINT, ACCESO, SECRETO, REGION)
+# Las fotos de rostros usan su propio almacén (S3_ROSTROS_*, el de la VM) y, si no está configurado, el general.
+cliente_rostros = ClienteS3(
+    os.environ.get("S3_ROSTROS_ENDPOINT") or ENDPOINT,
+    os.environ.get("S3_ROSTROS_ACCESS_KEY") or ACCESO,
+    os.environ.get("S3_ROSTROS_SECRET_KEY") or SECRETO,
+    REGION,
+)
 fallos = 0
 
 
@@ -57,8 +64,8 @@ def paso(nombre: str, accion) -> bool:
         return False
 
 
-def descargar_con_la_api(bucket: str) -> None:
-    if cliente.descargar(bucket, CLAVE) != CONTENIDO:
+def descargar_con_la_api(c: ClienteS3, bucket: str) -> None:
+    if c.descargar(bucket, CLAVE) != CONTENIDO:
         raise RuntimeError("el contenido descargado no coincide con el subido")
 
 
@@ -83,14 +90,16 @@ def descargar_por_url_firmada(bucket: str) -> None:
 print(f"Almacén: {ENDPOINT}  (región {REGION}; URLs firmadas hacia {PUBLICO})")
 print(f"Credenciales configuradas: {'sí' if ACCESO and SECRETO else 'NO'}")
 for nombre, bucket in BUCKETS.items():
-    print(f"\nBucket de {nombre}: {bucket}")
-    paso("crear/confirmar el bucket (idempotente)", lambda b=bucket: cliente.crear_bucket(b))
-    if not paso("subir un objeto", lambda b=bucket: cliente.subir(b, CLAVE, CONTENIDO, "text/plain")):
+    c = cliente_rostros if nombre == "rostros" else cliente
+    print(f"\nBucket de {nombre}: {bucket}" + ("  (almacén propio de las fotos)" if c is cliente_rostros else ""))
+    paso("crear/confirmar el bucket (idempotente)", lambda b=bucket, c=c: c.crear_bucket(b))
+    if not paso("subir un objeto", lambda b=bucket, c=c: c.subir(b, CLAVE, CONTENIDO, "text/plain")):
         continue
-    paso("descargarlo con la API", lambda b=bucket: descargar_con_la_api(b))
-    paso("descargarlo por una URL firmada (como el navegador)", lambda b=bucket: descargar_por_url_firmada(b))
-    if nombre == "rostros":
-        paso("borrarlo de verdad (I1)", lambda b=bucket: cliente.borrar(b, CLAVE))
+    paso("descargarlo con la API", lambda b=bucket, c=c: descargar_con_la_api(c, b))
+    if nombre != "rostros":  # las fotos nunca se publican por una URL
+        paso("descargarlo por una URL firmada (como el navegador)", lambda b=bucket: descargar_por_url_firmada(b))
+    else:
+        paso("borrarlo de verdad (I1)", lambda b=bucket, c=c: c.borrar(b, CLAVE))
 
 print("\nRESULTADO:", "todo en orden" if fallos == 0 else f"{fallos} paso(s) con error")
 sys.exit(1 if fallos else 0)
