@@ -56,7 +56,7 @@ type Mutation {
     presupuesto: Decimal!
   ): EmisionExpensas!
 
-  "Registra el pago de una unidad a partir de su comprobante (F8): nace siempre PENDIENTE y solo el ADMIN lo confirma o rechaza después; nunca se confirma desde el cliente (F9). Idempotente (O1–O3): repetir la misma idempotencyKey devuelve el mismo pago que la primera vez, sin crear otro. Errores: F1 si un RESIDENTE registra para una unidad que no es suya; F8 si la fecha no es válida o es futura, o el banco no es válido; F10 si el monto no es mayor a 0 o tiene más de 2 decimales; O1 si la clave no es un UUID v4 o la hora del dispositivo no es válida; NOT_FOUND si la unidad no existe."
+  "Registra el pago de una unidad a partir de su comprobante (F8): nace siempre PENDIENTE y solo el ADMIN lo confirma o rechaza después; nunca se confirma desde el cliente (F9). Idempotente (O1–O3): repetir la misma idempotencyKey devuelve el mismo pago que la primera vez, sin crear otro. Errores: F1 si un RESIDENTE registra para una unidad que no es suya; F8 si la fecha no es válida o es futura, el banco no es válido o ese banco y número de operación ya están registrados; F10 si el monto no es mayor a 0 o tiene más de 2 decimales; O1 si la clave no es un UUID v4 o la hora del dispositivo no es válida; NOT_FOUND si la unidad no existe."
   registrarPago(
     unidadId: ID!
     monto: Decimal!
@@ -68,6 +68,8 @@ type Mutation {
     idempotencyKey: ID!
     "Hora del dispositivo al crear la operación, ISO-8601 con zona (O1). Se guarda aparte de la del servidor."
     horaDispositivo: String
+    "Número de operación del comprobante (lo prellena el OCR si lo lee). Banco + número de operación no se registran dos veces (F8)."
+    nroOperacion: String
   ): Pago!
 
   "Confirma un pago PENDIENTE (F8): se imputa FIFO a los cargos pendientes de la unidad, primero los vencidos más antiguos (F7); el excedente queda como saldo a favor y se emite el recibo. Solo ADMIN. Errores: F8 si el pago ya no está PENDIENTE; NOT_FOUND si no existe."
