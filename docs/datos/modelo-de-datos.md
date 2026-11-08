@@ -46,7 +46,7 @@ Agregados (ver `docs/arquitectura/ddd.md`): `Unidad` = unidad + residente_unidad
 | F5 | `recargo_propuesto` separado de `cargo`; trigger exige ADMIN y cargo tipo RECARGO al confirmar |
 | F6 | Trigger `tg_cargo_inmutable`: no se borra ni se edita monto/tipo/unidad/fechas; correcciones en `nota_credito` |
 | F7 | `imputacion_pago` solo con pagos CONFIRMADOS (trigger); índice FIFO `ix_cargo_pendiente_fifo`; saldo a favor en `v_estado_cuenta` |
-| F8 | `pago.comprobante_key` enlaza la foto del comprobante en S3 (`comprobantes/<unidad>/…`), nula si se registró sin conexión. Rechazo exige motivo (CHECK); `recibo` solo de pagos confirmados (trigger), numeración correlativa; índice único `ux_pago_operacion` (banco + `nro_operacion`, sin contar rechazados): el mismo comprobante bancario no se registra dos veces cuando se informa su número |
+| F8 | `pago.comprobante_key` enlaza la foto del comprobante en S3 (`comprobantes/<unidad>/…`), nula solo si la foto no se pudo subir (el portal la conserva en el dispositivo y la sube al reconectar; ver F8). Rechazo exige motivo (CHECK); `recibo` solo de pagos confirmados (trigger), numeración correlativa; índice único `ux_pago_operacion` (banco + `nro_operacion`, sin contar rechazados): el mismo comprobante bancario no se registra dos veces cuando se informa su número |
 | F9 | `pago.estado` nace `PENDIENTE` |
 | F10 | `NUMERIC(12,2)` y `CHECK (monto > 0)` en todo importe |
 | O3 | `pago.idempotency_key UNIQUE` |

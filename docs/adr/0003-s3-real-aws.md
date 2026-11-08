@@ -36,7 +36,7 @@ permiso de borrado) y una regla de ciclo de vida expira los respaldos a los 30 d
 - Probado el 07/11/2026: reportes y modelos contra AWS (subida, descarga y URL firmada), fotos de rostros contra la VM con borrado real, respaldos de
   Azure y Google en `respaldos/` y restauración del respaldo de Gestión desde AWS en una base de prueba: 200 unidades, 624 cargos, 493 pagos y
   80 morosos, idénticos a la base real.
-- **Fotos de comprobantes de pago (aprobado el 07/11/2026):** Gestión entrega al residente un enlace prefirmado (SigV4, 15 min) y la foto sube directo del navegador a `comprobantes/<unidad>/<idempotencyKey>.<ext>`; el pago guarda la clave en `pago.comprobante_key` y el `ADMIN` la ve con otro enlace temporal. Usuario IAM `condohub-gestion` con `s3:PutObject` y `s3:GetObject` solo sobre `comprobantes/*`, y CORS del bucket para el origen del portal. Sin conexión el pago se registra sin foto (F8, F9, O6).
+- **Fotos de comprobantes de pago (aprobado el 07/11/2026):** Gestión entrega al residente un enlace prefirmado (SigV4, 15 min) y la foto sube directo del navegador a `comprobantes/<unidad>/<idempotencyKey>.<ext>`; el pago guarda la clave en `pago.comprobante_key` y el `ADMIN` la ve con otro enlace temporal. Usuario IAM `condohub-gestion` con `s3:PutObject` y `s3:GetObject` solo sobre `comprobantes/*`, y CORS del bucket para el origen del portal. Sin conexión la foto espera en el dispositivo y se sube al reconectar, antes de registrar el pago (F8, F9, O6; ajustado el 08/11/2026: antes se registraba sin foto).
 - **No aprobado todavía:** copia del informe mensual de n8n.
 
 ## Lo aprendido al implementarla
